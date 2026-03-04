@@ -1,0 +1,16 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\backend",
+    "\\backend\\SkorTakip.API",
+    "\\backend\\SkorTakip.API\\Data",
+    "\\backend\\SkorTakip.API\\DTOs",
+    "\\backend\\SkorTakip.API\\Hubs",
+    "\\backend\\SkorTakip.API\\Interfaces",
+    "\\backend\\SkorTakip.API\\Migrations",
+    "\\backend\\SkorTakip.API\\Models",
+    "\\backend\\SkorTakip.API\\Properties"
+  ],
+  "SelectedNode": "\\backend\\SkorTakip.API\\Program.cs",
+  "PreviewInSolutionExplorer": false
+}
