@@ -26,8 +26,13 @@ namespace SkorTakip.API.Data;
                 entity.Property(e => e.HomeTeam).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.AwayTeam).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.League).HasMaxLength(200);
+                entity.Property(e => e.LeagueCountry).HasMaxLength(100);
+                entity.Property(e => e.LeagueFlag).HasMaxLength(500);
+                entity.Property(e => e.HomeTeamLogo).HasMaxLength(500);
+                entity.Property(e => e.AwayTeamLogo).HasMaxLength(500);
                 entity.Property(e => e.Status).HasConversion<int>();
                 entity.Property(e => e.SportType).HasConversion<int>();
+                entity.Property(e => e.IsHidden).HasDefaultValue(false);
             });
 
             builder.Entity<FavoriteMatch>(entity =>

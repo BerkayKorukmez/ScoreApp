@@ -24,35 +24,45 @@ public class Match
     
     [MaxLength(200)]
     public string League { get; set; } = string.Empty;
-    
+
+    // Lig ülkesi (DB'ye kaydedilir)
+    [MaxLength(100)]
+    public string? LeagueCountry { get; set; }
+
+    // Harici API lig ID'si (DB'ye kaydedilir, puan tablosu için kullanılır)
+    public int? ExternalLeagueId { get; set; }
+
+    // Ülke bayrağı URL'si (DB'ye kaydedilir)
+    [MaxLength(500)]
+    public string? LeagueFlag { get; set; }
+
     public DateTime StartTime { get; set; }
     public MatchStatus Status { get; set; }
     public SportType SportType { get; set; } = SportType.Football;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Harici API fixture ID'si (DB'ye kaydedilmez)
+    // Harici API fixture ID'si (DB'ye kaydedilmez - zaten Id içinde gömülü)
     [NotMapped]
     [JsonIgnore]
     public int? ExternalFixtureId { get; set; }
 
+    // Takım logoları (DB'ye kaydedilir)
+    [MaxLength(500)]
+    public string? HomeTeamLogo { get; set; }
+
+    [MaxLength(500)]
+    public string? AwayTeamLogo { get; set; }
+
+    /// <summary>
+    /// Admin tarafından gizlenen maçlar kullanıcılara gösterilmez.
+    /// </summary>
+    public bool IsHidden { get; set; } = false;
+
     // Maç istatistikleri (DB'ye kaydedilmez, sadece detay sayfasında döndürülür)
     [NotMapped]
     public Dictionary<string, object>? Statistics { get; set; }
-}
 
-public enum MatchStatus
-{
-    NotStarted = 0,
-    Live = 1,
-    HalfTime = 2,
-    Finished = 3
-}
-
-public enum SportType
-{
-    Football = 0,
-    Basketball = 1,
-    AmericanFootball = 2,
-    Volleyball = 3,
-    Tennis = 4
+    // Maç olayları - goller, kartlar, değişiklikler (DB'ye kaydedilmez)
+    [NotMapped]
+    public List<Dictionary<string, object>>? Events { get; set; }
 }

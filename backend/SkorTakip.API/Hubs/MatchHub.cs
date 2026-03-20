@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.SignalR;
-using SkorTakip.API.Services;
+using SkorTakip.API.Services.Interfaces;
 
 namespace SkorTakip.API.Hubs;
 
 public class MatchHub : Hub
 {
-    private readonly LiveMatchService _liveMatchService;
+    private readonly ILiveMatchService _liveMatchService;
 
-    public MatchHub(LiveMatchService liveMatchService)
+    public MatchHub(ILiveMatchService liveMatchService)
     {
         _liveMatchService = liveMatchService;
     }

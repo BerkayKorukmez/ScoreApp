@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SkorTakip.API.DTOs;
 using SkorTakip.API.Models;
-using SkorTakip.API.Services;
+using SkorTakip.API.Services.Interfaces;
 
 namespace SkorTakip.API.Controllers;
 
@@ -12,13 +13,13 @@ public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly JwtService _jwtService;
+    private readonly IJwtService _jwtService;
     private readonly IConfiguration _configuration;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        JwtService jwtService,
+        IJwtService jwtService,
         IConfiguration configuration)
     {
         _userManager = userManager;
@@ -44,11 +45,10 @@ public class AuthController : ControllerBase
         var result = await _userManager.CreateAsync(user, dto.Password);
 
         if (!result.Succeeded)
-        {
             return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
-        }
 
-        var token = _jwtService.GenerateToken(user);
+        var roles = await _userManager.GetRolesAsync(user);
+        var token = _jwtService.GenerateToken(user, roles);
         var expirationMinutes = int.Parse(_configuration["JwtSettings:ExpirationInMinutes"] ?? "60");
 
         return Ok(new AuthResponseDto
@@ -57,7 +57,8 @@ public class AuthController : ControllerBase
             UserId = user.Id,
             Email = user.Email!,
             UserName = user.UserName!,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes)
+            ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes),
+            IsAdmin = roles.Contains("Admin")
         });
     }
 
@@ -75,7 +76,8 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return Unauthorized(new { message = "Email veya şifre hatalı" });
 
-        var token = _jwtService.GenerateToken(user);
+        var roles = await _userManager.GetRolesAsync(user);
+        var token = _jwtService.GenerateToken(user, roles);
         var expirationMinutes = int.Parse(_configuration["JwtSettings:ExpirationInMinutes"] ?? "60");
 
         return Ok(new AuthResponseDto
@@ -84,7 +86,30 @@ public class AuthController : ControllerBase
             UserId = user.Id,
             Email = user.Email!,
             UserName = user.UserName!,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes)
+            ExpiresAt = DateTime.UtcNow.AddMinutes(expirationMinutes),
+            IsAdmin = roles.Contains("Admin")
+        });
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> Me()
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        var roles = await _userManager.GetRolesAsync(user);
+        return Ok(new
+        {
+            user.Id,
+            user.UserName,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            IsAdmin = roles.Contains("Admin")
         });
     }
 }

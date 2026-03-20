@@ -1,23 +1,57 @@
-version: '3.8'
-
 services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     container_name: skortakip-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: SkorTakipDB
-    ports:
-      - "5432:5432"
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── .NET Backend API ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend/SkorTakip.API
+      dockerfile: Dockerfile
+    container_name: skortakip-backend
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - Admin__Email=${ADMIN_EMAIL}
+      - Admin__UserName=${ADMIN_USERNAME}
+      - Admin__Password=${ADMIN_PASSWORD}
+      - ApiSports__FootballApiKey=${FOOTBALL_API_KEY}
+      - ApiSports__BasketballApiKey=${BASKETBALL_API_KEY}
+      - ApiSports__VolleyballApiKey=${VOLLEYBALL_API_KEY}
+      - CollectApi__ApiKey=${COLLECT_API_KEY}
+      - AllowedOrigins=${ALLOWED_ORIGINS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Vue Frontend (nginx) ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: skortakip-frontend
+    ports:
+      - "3000:80"       # http://localhost:3000 → uygulama
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

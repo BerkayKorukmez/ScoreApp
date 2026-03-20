@@ -123,6 +123,16 @@
         <!-- Alt bilgi -->
         <div class="auth-footer">
           <p>Hesabınız yok mu? <router-link to="/register">Kayıt Ol</router-link></p>
+          <div class="auth-divider">
+            <span>veya</span>
+          </div>
+          <button class="btn-guest" @click="router.push('/')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="8" r="4"/>
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+            Hesap olmadan devam et
+          </button>
         </div>
       </div>
     </div>
@@ -151,7 +161,7 @@ const handleLogin = async () => {
   const result = await authStore.login(email.value, password.value)
 
   if (result.success) {
-    router.push('/')
+    router.push('/user')
   } else {
     errorMessage.value = result.message
   }
@@ -499,6 +509,10 @@ const handleLogin = async () => {
   margin-top: 1.75rem;
   padding-top: 1.25rem;
   border-top: 1px solid #21262d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .auth-footer p {
@@ -515,6 +529,53 @@ const handleLogin = async () => {
 
 .auth-footer a:hover {
   text-decoration: underline;
+}
+
+.auth-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #30363d;
+  font-size: 0.75rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #21262d;
+}
+
+.btn-guest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.7rem;
+  background: transparent;
+  color: #8b949e;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btn-guest svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.btn-guest:hover {
+  background: #161b22;
+  color: #c9d1d9;
+  border-color: #484f58;
 }
 
 /* =============================================

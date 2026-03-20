@@ -5,11 +5,12 @@ import axios from 'axios'
 export const useAuthStore = defineStore('auth', () => {
   // localStorage'dan kullanıcı ve token bilgisini geri yükle
   const storedUser = localStorage.getItem('user')
-  const user = ref(storedUser ? JSON.parse(storedUser) : null)
+  const user  = ref(storedUser ? JSON.parse(storedUser) : null)
   const token = ref(localStorage.getItem('token') || null)
   const isLoading = ref(false)
 
   const isAuthenticated = computed(() => !!token.value)
+  const isAdmin         = computed(() => !!user.value?.isAdmin)
 
   // Axios interceptor - sadece bir kez kurulur
   let interceptorSetup = false
@@ -38,26 +39,25 @@ export const useAuthStore = defineStore('auth', () => {
     )
   }
 
-  // Uygulama başlar başlamaz interceptor'ı kur
   setupAxiosInterceptor()
+
+  const _saveSession = (data) => {
+    token.value = data.token
+    user.value = {
+      id:       data.userId,
+      email:    data.email,
+      userName: data.userName,
+      isAdmin:  data.isAdmin ?? false
+    }
+    localStorage.setItem('token', token.value)
+    localStorage.setItem('user', JSON.stringify(user.value))
+  }
 
   const login = async (email, password) => {
     isLoading.value = true
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
-        email,
-        password
-      })
-      
-      token.value = response.data.token
-      user.value = {
-        id: response.data.userId,
-        email: response.data.email,
-        userName: response.data.userName
-      }
-      localStorage.setItem('token', token.value)
-      localStorage.setItem('user', JSON.stringify(user.value))
-      
+      const response = await axios.post('/auth/login', { email, password })
+      _saveSession(response.data)
       return { success: true }
     } catch (error) {
       return {
@@ -72,23 +72,14 @@ export const useAuthStore = defineStore('auth', () => {
   const register = async (username, email, password, firstName = '', lastName = '') => {
     isLoading.value = true
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
+      const response = await axios.post('/auth/register', {
         email,
         password,
         firstName: firstName || username,
-        lastName: lastName || username,
-        userName: username
+        lastName:  lastName  || username,
+        userName:  username
       })
-      
-      token.value = response.data.token
-      user.value = {
-        id: response.data.userId,
-        email: response.data.email,
-        userName: response.data.userName
-      }
-      localStorage.setItem('token', token.value)
-      localStorage.setItem('user', JSON.stringify(user.value))
-      
+      _saveSession(response.data)
       return { success: true }
     } catch (error) {
       return {
@@ -102,17 +93,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   const logout = () => {
     token.value = null
-    user.value = null
+    user.value  = null
     localStorage.removeItem('token')
     localStorage.removeItem('user')
   }
 
   const fetchCurrentUser = async () => {
     if (!token.value) return
-
     try {
-      const response = await axios.get('http://localhost:5000/api/auth/me')
-      user.value = response.data
+      const response = await axios.get('/auth/me')
+      user.value = {
+        ...user.value,
+        ...response.data,
+        isAdmin: response.data.isAdmin ?? false
+      }
+      localStorage.setItem('user', JSON.stringify(user.value))
       return { success: true }
     } catch (error) {
       logout()
@@ -125,6 +120,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     isLoading,
     isAuthenticated,
+    isAdmin,
     login,
     register,
     logout,

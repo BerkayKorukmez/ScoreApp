@@ -1,15 +1,15 @@
 using Microsoft.AspNetCore.SignalR;
 using SkorTakip.API.Hubs;
-using SkorTakip.API.Interfaces;
 using SkorTakip.API.Models;
+using SkorTakip.API.Services.Interfaces;
 
 namespace SkorTakip.API.Services;
 
 /// <summary>
-/// Her 30 saniyede bir tüm sporların maçlarını API'den çeker,
+/// Her 2 dakikada bir tüm sporların maçlarını API'den çeker,
 /// değişen maçları WebSocket üzerinden bağlı tüm istemcilere gönderir.
 /// </summary>
-public class LiveMatchService : BackgroundService
+public class LiveMatchService : BackgroundService, ILiveMatchService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IHubContext<MatchHub> _hubContext;
@@ -17,9 +17,6 @@ public class LiveMatchService : BackgroundService
 
     // Son bilinen maç durumlarını saklar (Id → Match)
     private readonly Dictionary<string, Match> _matchCache = new();
-
-    // Maç güncellemelerini isteyen tüm istemcilerin anlık listesini almak için
-    public static readonly Dictionary<string, List<Match>> CurrentMatches = new();
 
     public LiveMatchService(
         IServiceProvider serviceProvider,
@@ -56,7 +53,6 @@ public class LiveMatchService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var externalApi = scope.ServiceProvider.GetRequiredService<IExternalApiService>();
 
-        // Tüm sporları paralel çek (Tenis API planında mevcut değil, kaldırıldı)
         var tasks = new[]
         {
             FetchSafely(() => externalApi.FetchFootballMatchesAsync(),   "Futbol"),
@@ -81,28 +77,24 @@ public class LiveMatchService : BackgroundService
         {
             if (_matchCache.TryGetValue(match.Id, out var cached))
             {
-                // Değişiklik var mı kontrol et
                 if (cached.HomeScore != match.HomeScore ||
                     cached.AwayScore != match.AwayScore ||
                     cached.Status    != match.Status    ||
                     cached.Minute    != match.Minute)
                 {
-                    // Değişiklik var → WebSocket ile yayınla
                     _matchCache[match.Id] = match;
-                    await _hubContext.Clients.All.SendAsync("MatchUpdated", match);
+                    await _hubContext.Clients.All.SendAsync("MatchUpdated", match, stoppingToken);
                     updatedCount++;
                 }
             }
             else
             {
-                // Yeni maç → cache'e ekle ve yayınla
                 _matchCache[match.Id] = match;
-                await _hubContext.Clients.All.SendAsync("MatchUpdated", match);
+                await _hubContext.Clients.All.SendAsync("MatchUpdated", match, stoppingToken);
                 updatedCount++;
             }
         }
 
-        // Güncelleme yoksa sadece log
         if (updatedCount > 0)
             _logger.LogInformation("LiveMatchService: {Count} mac WebSocket ile yayinlandi.", updatedCount);
     }
@@ -121,8 +113,8 @@ public class LiveMatchService : BackgroundService
     }
 
     /// <summary>
-    /// Yeni bağlanan bir istemciye cache'teki tüm maçları gönderir.
-    /// MatchHub.OnConnectedAsync tarafından çağrılır.
+    /// Cache'teki tüm maçları döndürür.
+    /// MatchHub.OnConnectedAsync ve MatchController tarafından kullanılır.
     /// </summary>
     public IEnumerable<Match> GetCachedMatches() => _matchCache.Values;
 }

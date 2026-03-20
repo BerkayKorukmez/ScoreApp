@@ -1,199 +1,162 @@
 <template>
-  <div class="app-container">
+  <div class="news-page">
 
-    <!-- ÜST HEADER ÇUBUĞU -->
-    <header class="top-header">
-      <div class="header-left">
-        <router-link to="/" class="brand">
-          <span class="brand-icon">⚽</span>
-          <span class="brand-text">SkorTakip</span>
-        </router-link>
+    <!-- Sayfa Başlığı ve Filtreler -->
+    <div class="news-header">
+      <div class="news-title-section">
+        <h1 class="news-page-title">📰 Spor Haberleri</h1>
+        <p class="news-page-desc">Dünya sporlarından en güncel haberler</p>
       </div>
-      <div class="header-center">
-        <router-link to="/" class="nav-link">
-          <span class="nav-icon">🏟️</span> Maçlar
-        </router-link>
-        <router-link to="/news" class="nav-link active">
-          <span class="nav-icon">📰</span> Haberler
-        </router-link>
-      </div>
-      <div class="header-right">
-        <template v-if="authStore.isAuthenticated">
-          <div class="user-info">
-            <span class="user-avatar">👤</span>
-            <span class="user-name">{{ authStore.user?.userName || authStore.user?.email || 'Hesabım' }}</span>
+
+      <div class="news-filters">
+        <!-- Dil Seçimi -->
+        <div class="filter-group">
+          <label class="filter-label">Dil</label>
+          <select v-model="selectedLanguage" class="filter-select" @change="loadNews(true)">
+            <option value="tr">🇹🇷 Türkçe</option>
+            <option value="en">🇬🇧 İngilizce</option>
+            <option value="de">🇩🇪 Almanca</option>
+            <option value="fr">🇫🇷 Fransızca</option>
+            <option value="es">🇪🇸 İspanyolca</option>
+            <option value="it">🇮🇹 İtalyanca</option>
+          </select>
+        </div>
+
+        <!-- Arama -->
+        <div class="filter-group search-group">
+          <label class="filter-label">Ara</label>
+          <div class="search-wrapper">
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="search-input"
+              placeholder="Futbol, basketbol, F1..."
+              @keyup.enter="loadNews(true)"
+            />
+            <button class="search-btn" @click="loadNews(true)">🔍</button>
           </div>
-          <button class="btn-logout" @click="handleLogout">Çıkış</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yükleniyor -->
+    <div v-if="isLoading && articles.length === 0" class="loading-state">
+      <div class="spinner"></div>
+      <span>Haberler yükleniyor...</span>
+    </div>
+
+    <!-- Hata Durumu -->
+    <div v-else-if="errorMessage" class="error-state">
+      <span class="error-icon">⚠️</span>
+      <p>{{ errorMessage }}</p>
+      <button class="retry-btn" @click="loadNews(true)">Tekrar Dene</button>
+    </div>
+
+    <!-- Haber Bulunamadı -->
+    <div v-else-if="articles.length === 0 && !isLoading" class="empty-state">
+      <span class="empty-icon">📭</span>
+      <p>Haber bulunamadı</p>
+      <small>Farklı bir arama terimi veya dil seçmeyi deneyin</small>
+    </div>
+
+    <!-- HABER KARTLARI -->
+    <div v-else class="news-grid">
+      <!-- Öne Çıkan Haber (İlk haber büyük kart) -->
+      <div
+        v-if="articles.length > 0"
+        class="featured-card"
+        @click="openArticle(articles[0].link)"
+      >
+        <div class="featured-image-wrapper">
+          <img
+            v-if="articles[0].image_url"
+            :src="articles[0].image_url"
+            :alt="articles[0].title"
+            class="featured-image"
+            @error="handleImageError"
+          />
+          <div v-else class="featured-image-placeholder">
+            <span>📰</span>
+          </div>
+          <div class="featured-overlay">
+            <div class="featured-meta">
+              <span v-if="articles[0].source_name" class="news-source">{{ articles[0].source_name }}</span>
+              <span class="news-date">{{ formatRelativeDate(articles[0].pubDate) }}</span>
+            </div>
+            <h2 class="featured-title">{{ articles[0].title }}</h2>
+            <p v-if="articles[0].description" class="featured-desc">
+              {{ truncateText(articles[0].description, 200) }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Normal Haber Kartları -->
+      <div
+        v-for="(article, index) in articles.slice(1)"
+        :key="article.article_id || index"
+        class="news-card"
+        @click="openArticle(article.link)"
+      >
+        <div class="card-image-wrapper">
+          <img
+            v-if="article.image_url"
+            :src="article.image_url"
+            :alt="article.title"
+            class="card-image"
+            @error="handleImageError"
+          />
+          <div v-else class="card-image-placeholder">
+            <span>📰</span>
+          </div>
+        </div>
+        <div class="card-content">
+          <div class="card-meta">
+            <span v-if="article.source_name" class="news-source">{{ article.source_name }}</span>
+            <span class="news-date">{{ formatRelativeDate(article.pubDate) }}</span>
+          </div>
+          <h3 class="card-title">{{ article.title }}</h3>
+          <p v-if="article.description" class="card-desc">
+            {{ truncateText(article.description, 120) }}
+          </p>
+          <div class="card-footer">
+            <div v-if="article.category" class="card-categories">
+              <span
+                v-for="cat in article.category"
+                :key="cat"
+                class="category-tag"
+              >
+                {{ cat }}
+              </span>
+            </div>
+            <span class="read-more">Devamını Oku →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daha Fazla Yükle Butonu -->
+    <div v-if="nextPageToken && articles.length > 0" class="load-more-wrapper">
+      <button class="load-more-btn" :disabled="isLoadingMore" @click="loadMoreNews">
+        <template v-if="isLoadingMore">
+          <div class="spinner-sm"></div>
+          Yükleniyor...
         </template>
         <template v-else>
-          <router-link to="/login" class="btn-auth">Giriş Yap</router-link>
-          <router-link to="/register" class="btn-auth btn-register">Kayıt Ol</router-link>
+          Daha Fazla Haber Yükle
         </template>
-      </div>
-    </header>
-
-    <!-- HABER SAYFASI İÇERİĞİ -->
-    <div class="news-page">
-
-      <!-- Sayfa Başlığı ve Filtreler -->
-      <div class="news-header">
-        <div class="news-title-section">
-          <h1 class="news-page-title">📰 Spor Haberleri</h1>
-          <p class="news-page-desc">Dünya sporlarından en güncel haberler</p>
-        </div>
-
-        <div class="news-filters">
-          <!-- Dil Seçimi -->
-          <div class="filter-group">
-            <label class="filter-label">Dil</label>
-            <select v-model="selectedLanguage" class="filter-select" @change="loadNews(true)">
-              <option value="tr">🇹🇷 Türkçe</option>
-              <option value="en">🇬🇧 İngilizce</option>
-              <option value="de">🇩🇪 Almanca</option>
-              <option value="fr">🇫🇷 Fransızca</option>
-              <option value="es">🇪🇸 İspanyolca</option>
-              <option value="it">🇮🇹 İtalyanca</option>
-            </select>
-          </div>
-
-          <!-- Arama -->
-          <div class="filter-group search-group">
-            <label class="filter-label">Ara</label>
-            <div class="search-wrapper">
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="search-input"
-                placeholder="Futbol, basketbol, F1..."
-                @keyup.enter="loadNews(true)"
-              />
-              <button class="search-btn" @click="loadNews(true)">🔍</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Yükleniyor -->
-      <div v-if="isLoading && articles.length === 0" class="loading-state">
-        <div class="spinner"></div>
-        <span>Haberler yükleniyor...</span>
-      </div>
-
-      <!-- Hata Durumu -->
-      <div v-else-if="errorMessage" class="error-state">
-        <span class="error-icon">⚠️</span>
-        <p>{{ errorMessage }}</p>
-        <button class="retry-btn" @click="loadNews(true)">Tekrar Dene</button>
-      </div>
-
-      <!-- Haber Bulunamadı -->
-      <div v-else-if="articles.length === 0 && !isLoading" class="empty-state">
-        <span class="empty-icon">📭</span>
-        <p>Haber bulunamadı</p>
-        <small>Farklı bir arama terimi veya dil seçmeyi deneyin</small>
-      </div>
-
-      <!-- HABER KARTLARI -->
-      <div v-else class="news-grid">
-        <!-- Öne Çıkan Haber (İlk haber büyük kart) -->
-        <div
-          v-if="articles.length > 0"
-          class="featured-card"
-          @click="openArticle(articles[0].link)"
-        >
-          <div class="featured-image-wrapper">
-            <img
-              v-if="articles[0].image_url"
-              :src="articles[0].image_url"
-              :alt="articles[0].title"
-              class="featured-image"
-              @error="handleImageError"
-            />
-            <div v-else class="featured-image-placeholder">
-              <span>📰</span>
-            </div>
-            <div class="featured-overlay">
-              <div class="featured-meta">
-                <span v-if="articles[0].source_name" class="news-source">{{ articles[0].source_name }}</span>
-                <span class="news-date">{{ formatDate(articles[0].pubDate) }}</span>
-              </div>
-              <h2 class="featured-title">{{ articles[0].title }}</h2>
-              <p v-if="articles[0].description" class="featured-desc">
-                {{ truncateText(articles[0].description, 200) }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Normal Haber Kartları -->
-        <div
-          v-for="(article, index) in articles.slice(1)"
-          :key="article.article_id || index"
-          class="news-card"
-          @click="openArticle(article.link)"
-        >
-          <div class="card-image-wrapper">
-            <img
-              v-if="article.image_url"
-              :src="article.image_url"
-              :alt="article.title"
-              class="card-image"
-              @error="handleImageError"
-            />
-            <div v-else class="card-image-placeholder">
-              <span>📰</span>
-            </div>
-          </div>
-          <div class="card-content">
-            <div class="card-meta">
-              <span v-if="article.source_name" class="news-source">{{ article.source_name }}</span>
-              <span class="news-date">{{ formatDate(article.pubDate) }}</span>
-            </div>
-            <h3 class="card-title">{{ article.title }}</h3>
-            <p v-if="article.description" class="card-desc">
-              {{ truncateText(article.description, 120) }}
-            </p>
-            <div class="card-footer">
-              <div v-if="article.category" class="card-categories">
-                <span
-                  v-for="cat in article.category"
-                  :key="cat"
-                  class="category-tag"
-                >
-                  {{ cat }}
-                </span>
-              </div>
-              <span class="read-more">Devamını Oku →</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Daha Fazla Yükle Butonu -->
-      <div v-if="nextPageToken && articles.length > 0" class="load-more-wrapper">
-        <button class="load-more-btn" :disabled="isLoadingMore" @click="loadMoreNews">
-          <template v-if="isLoadingMore">
-            <div class="spinner-sm"></div>
-            Yükleniyor...
-          </template>
-          <template v-else>
-            Daha Fazla Haber Yükle
-          </template>
-        </button>
-      </div>
-
+      </button>
     </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
 import { fetchSportsNews } from '../api/newsApi'
+import { useFormatters } from '../composables/useFormatters'
 
-const router = useRouter()
-const authStore = useAuthStore()
+const { formatRelativeDate, truncateText } = useFormatters()
 
 /* =============================================
    DURUM DEĞİŞKENLERİ
@@ -267,50 +230,12 @@ const loadMoreNews = async () => {
 /* =============================================
    YARDIMCI FONKSİYONLAR
    ============================================= */
-
-// Tarihi formatla
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now - date
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const minutes = Math.floor(diff / (1000 * 60))
-
-  if (minutes < 60) return `${minutes} dk önce`
-  if (hours < 24) return `${hours} saat önce`
-  if (hours < 48) return 'Dün'
-
-  return date.toLocaleDateString('tr-TR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
-}
-
-// Metni kısalt
-const truncateText = (text, maxLen) => {
-  if (!text) return ''
-  if (text.length <= maxLen) return text
-  return text.substring(0, maxLen).trim() + '...'
-}
-
-// Haber linkini aç
 const openArticle = (url) => {
   if (url) window.open(url, '_blank')
 }
 
-// Resim yükleme hatası
 const handleImageError = (event) => {
   event.target.style.display = 'none'
-  const placeholder = event.target.nextElementSibling || event.target.parentElement
-  if (placeholder) placeholder.style.display = 'flex'
-}
-
-// Çıkış yap
-const handleLogout = () => {
-  authStore.logout()
-  router.push('/login')
 }
 
 /* =============================================
@@ -323,151 +248,6 @@ onMounted(() => {
 
 <style scoped>
 /* =============================================
-   GENEL KONTEYNER
-   ============================================= */
-.app-container {
-  min-height: 100vh;
-  background: #0e1118;
-  color: #e1e4e8;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-/* =============================================
-   ÜST HEADER
-   ============================================= */
-.top-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 1.5rem;
-  height: 56px;
-  background: #161b22;
-  border-bottom: 1px solid #21262d;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  text-decoration: none;
-}
-
-.brand-icon {
-  font-size: 1.4rem;
-}
-
-.brand-text {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: -0.5px;
-}
-
-.header-center {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 1rem;
-  color: #8b949e;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.nav-link:hover {
-  color: #c9d1d9;
-  background: #21262d;
-}
-
-.nav-link.active {
-  color: #58a6ff;
-  background: #58a6ff15;
-}
-
-.nav-icon {
-  font-size: 1rem;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.75rem;
-  background: #21262d;
-  border-radius: 20px;
-}
-
-.user-avatar {
-  font-size: 0.85rem;
-}
-
-.user-name {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #c9d1d9;
-}
-
-.btn-logout {
-  background: transparent;
-  color: #f85149;
-  border: 1px solid #f8514933;
-  padding: 0.35rem 0.85rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-logout:hover {
-  background: #f8514922;
-  border-color: #f85149;
-}
-
-.btn-auth {
-  background: transparent;
-  color: #58a6ff;
-  border: 1px solid #58a6ff33;
-  padding: 0.35rem 0.85rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-decoration: none;
-  transition: all 0.2s;
-}
-
-.btn-auth:hover {
-  background: #58a6ff22;
-}
-
-.btn-register {
-  background: #238636;
-  color: #ffffff;
-  border-color: #238636;
-}
-
-.btn-register:hover {
-  background: #2ea043;
-}
-
-/* =============================================
    HABER SAYFASI
    ============================================= */
 .news-page {
@@ -476,13 +256,9 @@ onMounted(() => {
   padding: 1.5rem;
 }
 
-.news-header {
-  margin-bottom: 2rem;
-}
+.news-header { margin-bottom: 2rem; }
 
-.news-title-section {
-  margin-bottom: 1.25rem;
-}
+.news-title-section { margin-bottom: 1.25rem; }
 
 .news-page-title {
   font-size: 1.6rem;
@@ -534,23 +310,11 @@ onMounted(() => {
   min-width: 150px;
 }
 
-.filter-select:focus {
-  border-color: #58a6ff;
-}
+.filter-select:focus { border-color: #58a6ff; }
+.filter-select option { background: #161b22; }
 
-.filter-select option {
-  background: #161b22;
-}
-
-.search-group {
-  flex: 1;
-  min-width: 250px;
-}
-
-.search-wrapper {
-  display: flex;
-  gap: 0;
-}
+.search-group { flex: 1; min-width: 250px; }
+.search-wrapper { display: flex; gap: 0; }
 
 .search-input {
   flex: 1;
@@ -565,13 +329,8 @@ onMounted(() => {
   transition: border-color 0.2s;
 }
 
-.search-input:focus {
-  border-color: #58a6ff;
-}
-
-.search-input::placeholder {
-  color: #484f58;
-}
+.search-input:focus { border-color: #58a6ff; }
+.search-input::placeholder { color: #484f58; }
 
 .search-btn {
   background: #21262d;
@@ -585,9 +344,7 @@ onMounted(() => {
   transition: background 0.2s;
 }
 
-.search-btn:hover {
-  background: #30363d;
-}
+.search-btn:hover { background: #30363d; }
 
 /* =============================================
    YÜKLENİYOR, HATA, BOŞ DURUMLAR
@@ -620,9 +377,7 @@ onMounted(() => {
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .error-state {
   display: flex;
@@ -633,15 +388,8 @@ onMounted(() => {
   text-align: center;
 }
 
-.error-icon {
-  font-size: 2.5rem;
-}
-
-.error-state p {
-  color: #f85149;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
+.error-icon { font-size: 2.5rem; }
+.error-state p { color: #f85149; font-size: 0.95rem; font-weight: 500; }
 
 .retry-btn {
   background: #21262d;
@@ -655,9 +403,7 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.retry-btn:hover {
-  background: #30363d;
-}
+.retry-btn:hover { background: #30363d; }
 
 .empty-state {
   display: flex;
@@ -669,20 +415,9 @@ onMounted(() => {
   text-align: center;
 }
 
-.empty-icon {
-  font-size: 2.5rem;
-  opacity: 0.5;
-}
-
-.empty-state p {
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-.empty-state small {
-  font-size: 0.8rem;
-  color: #484f58;
-}
+.empty-icon { font-size: 2.5rem; opacity: 0.5; }
+.empty-state p { font-size: 1rem; font-weight: 500; }
+.empty-state small { font-size: 0.8rem; color: #484f58; }
 
 /* =============================================
    HABER GRID
@@ -798,9 +533,7 @@ onMounted(() => {
   transition: transform 0.3s;
 }
 
-.news-card:hover .card-image {
-  transform: scale(1.05);
-}
+.news-card:hover .card-image { transform: scale(1.05); }
 
 .card-image-placeholder {
   width: 100%;
@@ -853,9 +586,7 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.news-card:hover .card-title {
-  color: #58a6ff;
-}
+.news-card:hover .card-title { color: #58a6ff; }
 
 .card-desc {
   font-size: 0.82rem;
@@ -878,11 +609,7 @@ onMounted(() => {
   border-top: 1px solid #21262d;
 }
 
-.card-categories {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
+.card-categories { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 
 .category-tag {
   background: #21262d;
@@ -930,66 +657,30 @@ onMounted(() => {
   border-color: #58a6ff55;
 }
 
-.load-more-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.load-more-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* =============================================
    RESPONSIVE
    ============================================= */
 @media (max-width: 900px) {
-  .news-grid {
-    grid-template-columns: 1fr;
-  }
+  .news-grid { grid-template-columns: 1fr; }
 
   .featured-image,
-  .featured-image-placeholder {
-    height: 280px;
-  }
+  .featured-image-placeholder { height: 280px; }
 
-  .featured-title {
-    font-size: 1.2rem;
-  }
-
-  .header-center {
-    display: none;
-  }
+  .featured-title { font-size: 1.2rem; }
 }
 
 @media (max-width: 600px) {
-  .news-page {
-    padding: 1rem;
-  }
-
-  .news-filters {
-    flex-direction: column;
-  }
-
-  .search-group {
-    min-width: unset;
-    width: 100%;
-  }
+  .news-page { padding: 1rem; }
+  .news-filters { flex-direction: column; }
+  .search-group { min-width: unset; width: 100%; }
 
   .featured-image,
-  .featured-image-placeholder {
-    height: 220px;
-  }
+  .featured-image-placeholder { height: 220px; }
 
-  .featured-title {
-    font-size: 1.05rem;
-  }
-
-  .featured-overlay {
-    padding: 1.5rem 1rem 1rem;
-  }
-
-  .card-image-wrapper {
-    height: 160px;
-  }
-
-  .top-header {
-    padding: 0 1rem;
-  }
+  .featured-title { font-size: 1.05rem; }
+  .featured-overlay { padding: 1.5rem 1rem 1rem; }
+  .card-image-wrapper { height: 160px; }
 }
 </style>

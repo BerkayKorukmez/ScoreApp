@@ -3,14 +3,14 @@
     "",
     "\\backend",
     "\\backend\\SkorTakip.API",
-    "\\backend\\SkorTakip.API\\Data",
+    "\\backend\\SkorTakip.API\\Controllers",
     "\\backend\\SkorTakip.API\\DTOs",
+    "\\backend\\SkorTakip.API\\Extensions",
     "\\backend\\SkorTakip.API\\Hubs",
-    "\\backend\\SkorTakip.API\\Interfaces",
-    "\\backend\\SkorTakip.API\\Migrations",
     "\\backend\\SkorTakip.API\\Models",
-    "\\backend\\SkorTakip.API\\Properties"
+    "\\backend\\SkorTakip.API\\Properties",
+    "\\frontend"
   ],
-  "SelectedNode": "\\backend\\SkorTakip.API\\Program.cs",
+  "SelectedNode": "\\backend\\SkorTakip.API\\Controllers\\MatchController.cs",
   "PreviewInSolutionExplorer": false
 }

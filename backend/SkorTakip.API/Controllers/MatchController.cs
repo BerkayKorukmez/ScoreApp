@@ -2,10 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SkorTakip.API.Data;
+using SkorTakip.API.DTOs;
 using SkorTakip.API.Hubs;
-using SkorTakip.API.Interfaces;
 using SkorTakip.API.Models;
 using SkorTakip.API.Services;
+using SkorTakip.API.Services.Interfaces;
 
 namespace SkorTakip.API.Controllers;
 
@@ -16,13 +17,13 @@ public class MatchController : ControllerBase
     private readonly IHubContext<MatchHub> _hubContext;
     private readonly ApplicationDbContext _context;
     private readonly IExternalApiService _externalApiService;
-    private readonly LiveMatchService _liveMatchService;
+    private readonly ILiveMatchService _liveMatchService;
 
     public MatchController(
         IHubContext<MatchHub> hubContext,
         ApplicationDbContext context,
         IExternalApiService externalApiService,
-        LiveMatchService liveMatchService)
+        ILiveMatchService liveMatchService)
     {
         _hubContext = hubContext;
         _context = context;
@@ -36,8 +37,12 @@ public class MatchController : ControllerBase
         [FromQuery] MatchStatus? status,
         [FromQuery] SportType? sportType)
     {
-        // Eğer sportType verilmişse, önce ilgili spor için gerçek API'den verileri çek,
-        // ardından aynı spor tipine ait veritabanı maçlarını da ekle.
+        // Gizli maç ID'lerini önceden çek (filtre için)
+        var hiddenIds = (await _context.Matches
+            .Where(m => m.IsHidden)
+            .Select(m => m.Id)
+            .ToListAsync()).ToHashSet();
+
         if (sportType.HasValue)
         {
             List<Match> externalMatches = new List<Match>();
@@ -55,13 +60,14 @@ public class MatchController : ControllerBase
             }
             catch (Exception ex)
             {
-                // External API hatası - sadece veritabanı maçlarını döndür
-                // Log hatayı ama devam et
                 Console.WriteLine($"External API hatası ({sportType.Value}): {ex.Message}");
             }
 
+            // Gizli maçları filtrele
+            externalMatches = externalMatches.Where(m => !hiddenIds.Contains(m.Id)).ToList();
+
             var dbQuery = _context.Matches
-                .Where(m => m.SportType == sportType.Value)
+                .Where(m => m.SportType == sportType.Value && !m.IsHidden)
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(league))
@@ -69,7 +75,6 @@ public class MatchController : ControllerBase
                 externalMatches = externalMatches
                     .Where(m => string.Equals(m.League, league, StringComparison.OrdinalIgnoreCase))
                     .ToList();
-
                 dbQuery = dbQuery.Where(m => m.League == league);
             }
 
@@ -78,7 +83,6 @@ public class MatchController : ControllerBase
                 externalMatches = externalMatches
                     .Where(m => m.Status == status.Value)
                     .ToList();
-
                 dbQuery = dbQuery.Where(m => m.Status == status.Value);
             }
 
@@ -94,18 +98,13 @@ public class MatchController : ControllerBase
             return Ok(combined);
         }
 
-        // SportType yoksa, sadece veritabanındaki maçları döndür
-        var query = _context.Matches.AsQueryable();
+        var query = _context.Matches.Where(m => !m.IsHidden).AsQueryable();
 
         if (!string.IsNullOrEmpty(league))
-        {
             query = query.Where(m => m.League == league);
-        }
 
         if (status.HasValue)
-        {
             query = query.Where(m => m.Status == status.Value);
-        }
 
         var dbMatches = await query.OrderByDescending(m => m.StartTime).ToListAsync();
         return Ok(dbMatches);
@@ -122,38 +121,116 @@ public class MatchController : ControllerBase
         return Ok(leagues);
     }
 
+    /// <summary>
+    /// Belirtilen tarih ve spor tipine göre geçmiş maçları döner.
+    /// Geçmiş tarihler için önce DB kontrol edilir; bulunursa API'ye istek atılmaz.
+    /// Bulunmazsa dış API'den çekilip tamamlanmış maçlar DB'ye kaydedilir.
+    /// Tarih formatı: yyyy-MM-dd (örn: 2026-03-01)
+    /// </summary>
+    [HttpGet("history")]
+    public async Task<IActionResult> GetMatchHistory(
+        [FromQuery] string date,
+        [FromQuery] SportType sportType = SportType.Football)
+    {
+        if (string.IsNullOrWhiteSpace(date) || !DateTime.TryParse(date, out var parsedDate))
+            return BadRequest("Geçerli bir tarih giriniz (yyyy-MM-dd).");
+
+        var dayStart = parsedDate.Date;
+        var dayEnd   = dayStart.AddDays(1);
+        var isToday  = dayStart == DateTime.UtcNow.Date;
+
+        // ── Geçmiş tarihler için önce DB'yi kontrol et (futbol hariç — CollectAPI) ─
+        if (!isToday && sportType != SportType.Football)
+        {
+            var dbMatches = await _context.Matches
+                .Where(m => m.SportType == sportType
+                         && m.StartTime >= dayStart
+                         && m.StartTime < dayEnd)
+                .OrderByDescending(m => m.StartTime)
+                .ToListAsync();
+
+            if (dbMatches.Any())
+            {
+                Console.WriteLine($"Geçmiş maçlar DB'den döndürüldü: {dbMatches.Count} adet ({sportType}, {date})");
+                return Ok(dbMatches);
+            }
+        }
+
+        // ── API'den çek ──────────────────────────────────────────────────────────
+        List<Match> matches;
+        try
+        {
+            matches = sportType switch
+            {
+                SportType.Football   => await _externalApiService.FetchFootballMatchesByDateAsync(date),
+                SportType.Basketball => await _externalApiService.FetchBasketballMatchesByDateAsync(date),
+                SportType.Volleyball => await _externalApiService.FetchVolleyballMatchesByDateAsync(date),
+                _ => new List<Match>()
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Geçmiş maç API hatası ({sportType}): {ex.Message}");
+            matches = new List<Match>();
+        }
+
+        // ── Tamamlanmış maçları DB'ye kaydet (CollectAPI sentetik id'leri kaydetme) ─
+        // (bugün biten maçlar da dahil — yarın DB'den gelsin diye)
+        if (matches.Any())
+        {
+            var finishedMatches = matches
+                .Where(m => m.Status == MatchStatus.Finished && !m.Id.StartsWith("c-", StringComparison.Ordinal))
+                .ToList();
+
+            if (finishedMatches.Any())
+            {
+                var finishedIds = finishedMatches.Select(fm => fm.Id).ToList();
+
+                var existingIds = await _context.Matches
+                    .Where(m => finishedIds.Contains(m.Id))
+                    .Select(m => m.Id)
+                    .ToListAsync();
+
+                var newMatches = finishedMatches
+                    .Where(m => !existingIds.Contains(m.Id))
+                    .ToList();
+
+                if (newMatches.Any())
+                {
+                    _context.Matches.AddRange(newMatches);
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine($"DB'ye kaydedildi: {newMatches.Count} yeni biten maç ({sportType}, {date})");
+                }
+            }
+        }
+
+        matches = matches.OrderByDescending(m => m.StartTime).ToList();
+        return Ok(matches);
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetMatch(string id)
     {
         // Önce veritabanından dene
         var match = await _context.Matches.FirstOrDefaultAsync(m => m.Id == id);
         if (match != null)
+        {
+            // DB maçı için de istatistik çekmeyi dene
+            await TryLoadStatisticsAsync(match);
             return Ok(match);
+        }
 
-        // 1) LiveMatchService cache'inden dene (API çağrısı yapmadan!)
+        // 1) LiveMatchService cache'inden dene
         var cachedMatch = _liveMatchService.GetCachedMatches()
             .FirstOrDefault(m => m.Id == id);
 
         if (cachedMatch != null)
         {
-            // Futbol maçı ise istatistikleri de çek (cache'li)
-            if (cachedMatch.SportType == SportType.Football && cachedMatch.ExternalFixtureId.HasValue)
-            {
-                try
-                {
-                    var statistics = await _externalApiService.FetchFootballMatchStatisticsAsync(
-                        cachedMatch.ExternalFixtureId.Value);
-                    cachedMatch.Statistics = statistics;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"İstatistik çekilemedi: {ex.Message}");
-                }
-            }
+            await TryLoadStatisticsAsync(cachedMatch);
             return Ok(cachedMatch);
         }
 
-        // 2) Cache'te yoksa API'den çek (ExternalApiService kendi cache'ini kullanır)
+        // 2) Cache'te yoksa API'den çek
         var externalTasks = new[]
         {
             _externalApiService.FetchFootballMatchesAsync(),
@@ -170,22 +247,53 @@ public class MatchController : ControllerBase
         if (externalMatch == null)
             return NotFound();
 
-        // Futbol maçı ise ve ExternalFixtureId varsa, istatistikleri de çek
-        if (externalMatch.SportType == SportType.Football && externalMatch.ExternalFixtureId.HasValue)
+        await TryLoadStatisticsAsync(externalMatch);
+        return Ok(externalMatch);
+    }
+
+    /// <summary>
+    /// Maç tipine göre istatistikleri ve olayları API'den çekmeyi dener.
+    /// ExternalFixtureId yoksa Match ID'den parse eder.
+    /// </summary>
+    private async Task TryLoadStatisticsAsync(Match match)
+    {
+        try
         {
-            try
+            // ExternalFixtureId yoksa, Match ID'den parse et (Format: "SportType-{externalId}")
+            var externalId = match.ExternalFixtureId 
+                ?? ExternalApiService.ParseExternalIdFromMatchId(match.Id);
+
+            if (!externalId.HasValue) return;
+
+            // İstatistikleri çek
+            Dictionary<string, object>? statistics = match.SportType switch
             {
-                var statistics = await _externalApiService.FetchFootballMatchStatisticsAsync(
-                    externalMatch.ExternalFixtureId.Value);
-                externalMatch.Statistics = statistics;
-            }
-            catch (Exception ex)
+                SportType.Football => await _externalApiService.FetchFootballMatchStatisticsAsync(externalId.Value),
+                SportType.Basketball => await _externalApiService.FetchBasketballMatchStatisticsAsync(externalId.Value),
+                SportType.Volleyball => await _externalApiService.FetchVolleyballMatchStatisticsAsync(externalId.Value),
+                _ => null
+            };
+
+            match.Statistics = statistics;
+
+            // Futbol maçları için olayları da çek (goller, kartlar, değişiklikler)
+            if (match.SportType == SportType.Football)
             {
-                Console.WriteLine($"İstatistik çekilemedi: {ex.Message}");
+                try
+                {
+                    var events = await _externalApiService.FetchFootballMatchEventsAsync(externalId.Value);
+                    match.Events = events;
+                }
+                catch (Exception evEx)
+                {
+                    Console.WriteLine($"Olaylar çekilemedi: {evEx.Message}");
+                }
             }
         }
-
-        return Ok(externalMatch);
+        catch (Exception ex)
+        {
+            Console.WriteLine($"İstatistik çekilemedi ({match.SportType}): {ex.Message}");
+        }
     }
 
     [HttpPost]
@@ -242,21 +350,18 @@ public class MatchController : ControllerBase
 
         return NoContent();
     }
-}
 
-public class CreateMatchRequest
-{
-    public string HomeTeam { get; set; } = string.Empty;
-    public string AwayTeam { get; set; } = string.Empty;
-    public string League { get; set; } = string.Empty;
-    public DateTime? StartTime { get; set; }
-    public SportType SportType { get; set; } = SportType.Football;
-}
+    // ── CollectAPI: Son hafta maç sonuçları ──────────────────────────────────────
+    // GET /api/match/results/football?collectApiKey=super-lig
+    [HttpGet("results/football")]
+    public async Task<IActionResult> GetFootballResults(
+        [FromQuery] string? collectApiKey,
+        [FromQuery] string? date)
+    {
+        if (string.IsNullOrWhiteSpace(collectApiKey))
+            return BadRequest("collectApiKey parametresi zorunludur.");
 
-public class UpdateMatchRequest
-{
-    public int HomeScore { get; set; }
-    public int AwayScore { get; set; }
-    public int Minute { get; set; }
-    public MatchStatus Status { get; set; }
+        var results = await _externalApiService.FetchFootballResultsFromCollectApiAsync(collectApiKey, date);
+        return Ok(results);
+    }
 }
