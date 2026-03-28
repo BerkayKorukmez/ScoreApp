@@ -106,6 +106,13 @@
               ⚽ Olaylar
             </button>
             <button
+              v-if="match.sportType === 0"
+              :class="['tab-item', { active: activeTab === 'lineups' }]"
+              @click="activeTab = 'lineups'"
+            >
+              👥 Kadrolar
+            </button>
+            <button
               :class="['tab-item', { active: activeTab === 'info' }]"
               @click="activeTab = 'info'"
             >
@@ -248,6 +255,76 @@
             </div>
           </div>
 
+          <!-- KADROLAR SEKMESİ (Futbol — ilk 11) -->
+          <div v-if="activeTab === 'lineups'" class="tab-content">
+            <div v-if="isStatsLoading" class="stats-loading">
+              <div class="spinner-sm"></div>
+              <span>Kadrolar yükleniyor...</span>
+            </div>
+
+            <div v-else-if="!hasLineups" class="stats-empty">
+              <span class="stats-empty-icon">👥</span>
+              <p>Kadro verisi bulunamadı</p>
+              <small>Maç öncesinde veya bu lig için kadro yayınlanmadıysa ilk 11 gösterilemez</small>
+            </div>
+
+            <div v-else class="lineups-wrap">
+              <div class="lineups-columns">
+                <div class="lineup-side lineup-side-home">
+                  <div class="lineup-side-head">
+                    <img
+                      v-if="match.homeTeamLogo"
+                      :src="match.homeTeamLogo"
+                      alt=""
+                      class="lineup-side-logo"
+                    />
+                    <div class="lineup-side-titles">
+                      <span class="lineup-side-name">{{ match.homeTeam }}</span>
+                      <span v-if="homeLineupFormation" class="lineup-formation">{{ homeLineupFormation }}</span>
+                    </div>
+                  </div>
+                  <ol class="lineup-list">
+                    <li
+                      v-for="(p, idx) in homeStartingXI"
+                      :key="'h-'+idx"
+                      class="lineup-row"
+                    >
+                      <span class="lineup-num">{{ p.number != null ? p.number : '–' }}</span>
+                      <span class="lineup-pos" :title="lineupPosTitle(p.position)">{{ formatLineupPos(p.position) }}</span>
+                      <span class="lineup-player">{{ p.name }}</span>
+                    </li>
+                  </ol>
+                </div>
+
+                <div class="lineup-side lineup-side-away">
+                  <div class="lineup-side-head">
+                    <img
+                      v-if="match.awayTeamLogo"
+                      :src="match.awayTeamLogo"
+                      alt=""
+                      class="lineup-side-logo"
+                    />
+                    <div class="lineup-side-titles">
+                      <span class="lineup-side-name">{{ match.awayTeam }}</span>
+                      <span v-if="awayLineupFormation" class="lineup-formation">{{ awayLineupFormation }}</span>
+                    </div>
+                  </div>
+                  <ol class="lineup-list">
+                    <li
+                      v-for="(p, idx) in awayStartingXI"
+                      :key="'a-'+idx"
+                      class="lineup-row"
+                    >
+                      <span class="lineup-num">{{ p.number != null ? p.number : '–' }}</span>
+                      <span class="lineup-pos" :title="lineupPosTitle(p.position)">{{ formatLineupPos(p.position) }}</span>
+                      <span class="lineup-player">{{ p.name }}</span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- BİLGİLER SEKMESİ -->
           <div v-if="activeTab === 'info'" class="tab-content">
             <div class="info-grid">
@@ -271,6 +348,10 @@
               <div class="info-item">
                 <span class="info-key">Spor</span>
                 <span class="info-value">{{ getSportLabel(match.sportType) }}</span>
+              </div>
+              <div v-if="match.sportType === 0" class="info-item">
+                <span class="info-key">Stadyum</span>
+                <span class="info-value">{{ displayStadiumName }}</span>
               </div>
               <div class="info-item">
                 <span class="info-key">Ev Sahibi</span>
@@ -323,6 +404,52 @@ const activeTab = ref('stats')
 const hasStatistics = computed(() => {
   const s = match.value?.statistics
   return s && Object.keys(s).length > 0
+})
+
+// Kadrolar (API camelCase: lineups.home.startingXI)
+const matchLineups = computed(() => match.value?.lineups ?? null)
+
+const homeStartingXI = computed(() => {
+  const xi = matchLineups.value?.home?.startingXI
+  return Array.isArray(xi) ? xi : []
+})
+
+const awayStartingXI = computed(() => {
+  const xi = matchLineups.value?.away?.startingXI
+  return Array.isArray(xi) ? xi : []
+})
+
+const homeLineupFormation = computed(() => matchLineups.value?.home?.formation || '')
+const awayLineupFormation = computed(() => matchLineups.value?.away?.formation || '')
+
+const hasLineups = computed(() => homeStartingXI.value.length > 0 || awayStartingXI.value.length > 0)
+
+const formatLineupPos = (pos) => {
+  if (!pos) return '–'
+  const p = String(pos).toUpperCase()
+  const map = { G: 'KL', D: 'DF', M: 'OS', F: 'SV' }
+  return map[p] || p
+}
+
+const lineupPosTitle = (pos) => {
+  if (!pos) return ''
+  const p = String(pos).toUpperCase()
+  const map = {
+    G: 'Kaleci',
+    D: 'Defans',
+    M: 'Orta saha',
+    F: 'Forvet'
+  }
+  return map[p] || pos
+}
+
+/** API camelCase + olası PascalCase; boşsa tire */
+const displayStadiumName = computed(() => {
+  const m = match.value
+  if (!m) return '—'
+  const raw = m.stadiumName ?? m.StadiumName
+  if (raw != null && String(raw).trim() !== '') return String(raw).trim()
+  return '—'
 })
 
 // Basketbol veya voleybol mu? (periyot tablosu gösterilecek)
@@ -1040,6 +1167,130 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   object-fit: contain;
+}
+
+/* =============================================
+   KADROLAR (İlk 11)
+   ============================================= */
+.lineups-wrap {
+  padding: 0.25rem 0;
+}
+
+.lineups-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.lineup-side {
+  min-width: 0;
+  border: 1px solid #21262d;
+  border-radius: 10px;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+.lineup-side-home {
+  border-top: 3px solid #58a6ff;
+}
+
+.lineup-side-away {
+  border-top: 3px solid #f0883e;
+}
+
+.lineup-side-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+}
+
+.lineup-side-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.lineup-side-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.lineup-side-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #e1e4e8;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.lineup-formation {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #8b949e;
+  letter-spacing: 0.4px;
+}
+
+.lineup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0;
+  counter-reset: lineup;
+}
+
+.lineup-row {
+  display: grid;
+  grid-template-columns: 28px 28px 1fr;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #21262d12;
+}
+
+.lineup-row:last-child {
+  border-bottom: none;
+}
+
+.lineup-num {
+  font-weight: 800;
+  color: #58a6ff;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.lineup-side-away .lineup-num {
+  color: #f0883e;
+}
+
+.lineup-pos {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #484f58;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.lineup-player {
+  color: #c9d1d9;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .lineups-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =============================================

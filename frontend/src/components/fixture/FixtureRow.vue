@@ -1,5 +1,12 @@
 <template>
-  <div :class="['fixture-row', { 'is-live': isLive, 'is-highlight': highlight }]">
+  <div
+    :class="['fixture-row', { 'is-live': isLive, 'is-highlight': highlight, 'is-clickable': canGoToDetail }]"
+    :role="canGoToDetail ? 'button' : undefined"
+    :tabindex="canGoToDetail ? 0 : undefined"
+    @click="goToDetail"
+    @keydown.enter.prevent="canGoToDetail && goToDetail()"
+    @keydown.space.prevent="canGoToDetail && goToDetail()"
+  >
 
     <!-- Tarih / Saat -->
     <div class="match-date">
@@ -61,11 +68,25 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps({
   match:     { type: Object, required: true },
   highlight: { type: Boolean, default: false }
 })
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+/** Fikstür API’sinden gelen maçların `Football-{id}` vb. id’si detay sayfasıyla uyumlu */
+const canGoToDetail = computed(() => !!props.match?.id)
+
+const goToDetail = () => {
+  if (!canGoToDetail.value) return
+  const prefix = authStore.isAuthenticated ? '/user' : ''
+  router.push(`${prefix}/match/${props.match.id}`)
+}
 
 // status: 0=NotStarted, 1=Live, 2=HalfTime, 3=Finished
 const isLive     = computed(() => props.match.status === 1 || props.match.status === 2)
@@ -112,6 +133,13 @@ const dateTime = computed(() => {
   transition: background .15s;
 }
 .fixture-row:hover { background: #161b22; }
+.fixture-row.is-clickable {
+  cursor: pointer;
+}
+.fixture-row.is-clickable:hover {
+  background: #1c2129;
+  border-color: #30363d;
+}
 .fixture-row.is-live { border-color: #da3633; }
 .fixture-row.is-highlight { background: #1a0a0a; }
 

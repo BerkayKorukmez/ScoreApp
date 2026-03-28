@@ -397,6 +397,207 @@ public partial class ExternalApiService
     }
 
     // =========================================================================
+    // FUTBOL — Maç kadroları (ilk 11)
+    // =========================================================================
+
+    public async Task<FootballMatchLineupsDto?> FetchFootballMatchLineupsAsync(int fixtureId, string homeTeamName, string awayTeamName)
+    {
+        var lineupsCacheKey = -(fixtureId + 9000);
+        if (_statsCache.TryGetValue(lineupsCacheKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow &&
+            cached.Data != null &&
+            cached.Data.TryGetValue("_lineups", out var lineupsObj) &&
+            lineupsObj is FootballMatchLineupsDto cachedLineups)
+        {
+            _logger.LogInformation("Kadrolar CACHE'ten - Fixture ID: {FixtureId}", fixtureId);
+            return cachedLineups;
+        }
+
+        try
+        {
+            _logger.LogInformation("Futbol mac kadrolari cekiliyor - Fixture ID: {FixtureId}", fixtureId);
+
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v3.football.api-sports.io/fixtures/lineups?fixture={fixtureId}");
+            request.Headers.Add("x-apisports-key", GetApiKey("Football"));
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array ||
+                responseArray.GetArrayLength() == 0)
+            {
+                _logger.LogWarning("Kadro verisi bulunamadi - Fixture ID: {FixtureId}", fixtureId);
+                return null;
+            }
+
+            var teams = new List<FootballTeamLineupDto>();
+            foreach (var block in responseArray.EnumerateArray())
+            {
+                var teamDto = ParseFootballTeamLineupBlock(block);
+                if (teamDto != null && teamDto.StartingXI.Count > 0)
+                    teams.Add(teamDto);
+            }
+
+            if (teams.Count == 0)
+            {
+                _logger.LogWarning("Kadro listesi bos - Fixture ID: {FixtureId}", fixtureId);
+                return null;
+            }
+
+            var result = AssignHomeAwayLineups(teams, homeTeamName, awayTeamName);
+
+            var wrapper = new Dictionary<string, object> { { "_lineups", result } };
+            _statsCache[lineupsCacheKey] = (wrapper, DateTime.UtcNow.Add(StatsCacheDuration));
+            _logger.LogInformation("Kadrolar cekildi - Fixture ID: {FixtureId}", fixtureId);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Kadrolar cekilirken hata - Fixture ID: {FixtureId}", fixtureId);
+            return null;
+        }
+    }
+
+    private static FootballTeamLineupDto? ParseFootballTeamLineupBlock(JsonElement block)
+    {
+        try
+        {
+            var teamName = "";
+            if (block.TryGetProperty("team", out var teamEl) && teamEl.TryGetProperty("name", out var nameEl))
+                teamName = nameEl.GetString() ?? "";
+
+            var formation = block.TryGetProperty("formation", out var formEl) && formEl.ValueKind == JsonValueKind.String
+                ? formEl.GetString()
+                : null;
+
+            var starting = new List<LineupPlayerDto>();
+            if (block.TryGetProperty("startXI", out var xi) && xi.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var slot in xi.EnumerateArray())
+                {
+                    JsonElement playerEl;
+                    if (slot.TryGetProperty("player", out var p))
+                        playerEl = p;
+                    else
+                        playerEl = slot;
+
+                    var num = playerEl.TryGetProperty("number", out var nEl) && nEl.ValueKind == JsonValueKind.Number
+                        ? nEl.GetInt32()
+                        : (int?)null;
+                    var name = playerEl.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
+                    var pos = playerEl.TryGetProperty("pos", out var pe) && pe.ValueKind == JsonValueKind.String
+                        ? pe.GetString()
+                        : null;
+                    var photo = playerEl.TryGetProperty("photo", out var ph) && ph.ValueKind == JsonValueKind.String
+                        ? ph.GetString()
+                        : null;
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                        starting.Add(new LineupPlayerDto { Number = num, Name = name, Position = pos, Photo = photo });
+                }
+            }
+
+            if (starting.Count == 0)
+                return null;
+
+            return new FootballTeamLineupDto
+            {
+                TeamName = teamName,
+                Formation = formation,
+                StartingXI = starting
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool LineupNamesLikelyMatch(string apiName, string matchName)
+    {
+        if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(matchName))
+            return false;
+        var a = apiName.Trim().ToLowerInvariant();
+        var b = matchName.Trim().ToLowerInvariant();
+        return a == b || a.Contains(b, StringComparison.Ordinal) || b.Contains(a, StringComparison.Ordinal);
+    }
+
+    private static FootballMatchLineupsDto AssignHomeAwayLineups(List<FootballTeamLineupDto> teams, string homeTeamName, string awayTeamName)
+    {
+        var result = new FootballMatchLineupsDto();
+        if (teams.Count == 0)
+            return result;
+
+        if (teams.Count == 1)
+        {
+            if (LineupNamesLikelyMatch(teams[0].TeamName, homeTeamName))
+                result.Home = teams[0];
+            else if (LineupNamesLikelyMatch(teams[0].TeamName, awayTeamName))
+                result.Away = teams[0];
+            else
+                result.Home = teams[0];
+            return result;
+        }
+
+        var t0 = teams[0];
+        var t1 = teams[1];
+        var h0 = LineupNamesLikelyMatch(t0.TeamName, homeTeamName);
+        var h1 = LineupNamesLikelyMatch(t1.TeamName, homeTeamName);
+        var a0 = LineupNamesLikelyMatch(t0.TeamName, awayTeamName);
+        var a1 = LineupNamesLikelyMatch(t1.TeamName, awayTeamName);
+
+        if (h0 && a1)
+        {
+            result.Home = t0;
+            result.Away = t1;
+            return result;
+        }
+
+        if (h1 && a0)
+        {
+            result.Home = t1;
+            result.Away = t0;
+            return result;
+        }
+
+        if (h0 && !h1)
+        {
+            result.Home = t0;
+            result.Away = t1;
+            return result;
+        }
+
+        if (h1 && !h0)
+        {
+            result.Home = t1;
+            result.Away = t0;
+            return result;
+        }
+
+        if (a0 && !a1)
+        {
+            result.Away = t0;
+            result.Home = t1;
+            return result;
+        }
+
+        if (a1 && !a0)
+        {
+            result.Away = t1;
+            result.Home = t0;
+            return result;
+        }
+
+        result.Home = t0;
+        result.Away = t1;
+        return result;
+    }
+
+    // =========================================================================
     // FUTBOL — Puan durumu (CollectAPI)
     // =========================================================================
 
@@ -759,6 +960,58 @@ public partial class ExternalApiService
         return s.Length <= max ? s : s[..max];
     }
 
+    /// <summary>
+    /// API-Sports: venue kök düzeyde veya fixture altında; name boşsa city kullanılır.
+    /// </summary>
+    private static string? ExtractFootballVenueDisplayName(JsonElement item)
+    {
+        if (item.TryGetProperty("venue", out var venueRoot) && venueRoot.ValueKind == JsonValueKind.Object)
+        {
+            var n = ReadVenueNameOrCity(venueRoot);
+            if (!string.IsNullOrWhiteSpace(n)) return n;
+        }
+
+        if (item.TryGetProperty("fixture", out var fixtureEl) && fixtureEl.ValueKind == JsonValueKind.Object &&
+            fixtureEl.TryGetProperty("venue", out var venueInFixture) && venueInFixture.ValueKind == JsonValueKind.Object)
+        {
+            var n = ReadVenueNameOrCity(venueInFixture);
+            if (!string.IsNullOrWhiteSpace(n)) return n;
+        }
+
+        return null;
+    }
+
+    private static string? ReadVenueNameOrCity(JsonElement venue)
+    {
+        string? name = null;
+        if (venue.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+            name = nameEl.GetString();
+
+        if (string.IsNullOrWhiteSpace(name) && venue.TryGetProperty("city", out var cityEl) && cityEl.ValueKind == JsonValueKind.String)
+            name = cityEl.GetString();
+
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        return TruncateOptional(name.Trim(), 200);
+    }
+
+    /// <summary>
+    /// Takım logosunu her zaman <c>teams.*.id</c> ile CDN'deki resmi URL'den üretir;
+    /// API'deki <c>logo</c> alanı bazen takım adıyla uyumsuz kalabiliyor.
+    /// </summary>
+    private static string? ResolveFootballTeamLogoUrl(JsonElement teamObj)
+    {
+        if (teamObj.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.Number)
+        {
+            var id = idEl.GetInt32();
+            if (id > 0)
+                return TruncateOptional($"https://media.api-sports.io/football/teams/{id}.png", 500);
+        }
+
+        return TruncateOptional(teamObj.TryGetProperty("logo", out var l) ? l.GetString() : null, 500);
+    }
+
     // =========================================================================
     // Yardımcı: futbol fixture array'ini Match listesine çevirir
     // =========================================================================
@@ -810,6 +1063,8 @@ public partial class ExternalApiService
 
                 var fixtureId = fixture.GetProperty("id").GetInt32();
 
+                var stadiumName = ExtractFootballVenueDisplayName(item);
+
                 matches.Add(new Match
                 {
                     Id               = $"{SportType.Football}-{fixtureId}",
@@ -826,8 +1081,9 @@ public partial class ExternalApiService
                     Status           = status,
                     SportType        = SportType.Football,
                     ExternalFixtureId = fixtureId,
-                    HomeTeamLogo     = TruncateOptional(homeTeamObj.TryGetProperty("logo", out var hLogo) ? hLogo.GetString() : null, 500),
-                    AwayTeamLogo     = TruncateOptional(awayTeamObj.TryGetProperty("logo", out var aLogo) ? aLogo.GetString() : null, 500)
+                    HomeTeamLogo     = ResolveFootballTeamLogoUrl(homeTeamObj),
+                    AwayTeamLogo     = ResolveFootballTeamLogoUrl(awayTeamObj),
+                    StadiumName      = stadiumName
                 });
             }
             catch (Exception)

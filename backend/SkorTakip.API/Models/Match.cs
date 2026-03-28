@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using SkorTakip.API.DTOs;
 
 namespace SkorTakip.API.Models;
 
@@ -65,4 +66,16 @@ public class Match
     // Maç olayları - goller, kartlar, değişiklikler (DB'ye kaydedilmez)
     [NotMapped]
     public List<Dictionary<string, object>>? Events { get; set; }
+
+    // Futbol ilk 11 kadroları (DB'ye kaydedilmez)
+    [NotMapped]
+    public FootballMatchLineupsDto? Lineups { get; set; }
+
+    /// <summary>
+    /// Stadyum adı (API-Sports venue.name; DB'ye kaydedilmez).
+    /// </summary>
+    [NotMapped]
+    [MaxLength(200)]
+    [JsonPropertyName("stadiumName")]
+    public string? StadiumName { get; set; }
 }

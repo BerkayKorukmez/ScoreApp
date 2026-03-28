@@ -205,22 +205,17 @@
 import { ref, computed } from 'vue'
 import { searchFixture, fetchFixturesByTeam } from '../api/fixtureApi'
 import FixtureRow from '../components/fixture/FixtureRow.vue'
+import { FOOTBALL_POPULAR_QUICK_TEAMS, footballTeamLogoUrl } from '../constants/footballPopularTeams'
 
 // ── Sabitler ──────────────────────────────────────────────────────────────────
 const sports = [
   { id: 'football', label: 'Futbol', icon: '⚽' }
 ]
 
-const quickTeams = [
-  { id: 645,  name: 'Galatasaray',  logo: 'https://media.api-sports.io/football/teams/645.png',  sport: 'football' },
-  { id: 611,  name: 'Fenerbahçe',   logo: 'https://media.api-sports.io/football/teams/611.png',  sport: 'football' },
-  { id: 612,  name: 'Beşiktaş',     logo: 'https://media.api-sports.io/football/teams/612.png',  sport: 'football' },
-  { id: 614,  name: 'Trabzonspor',  logo: 'https://media.api-sports.io/football/teams/614.png',  sport: 'football' },
-  { id: 40,   name: 'Liverpool',    logo: 'https://media.api-sports.io/football/teams/40.png',   sport: 'football' },
-  { id: 50,   name: 'Manchester City', logo: 'https://media.api-sports.io/football/teams/50.png', sport: 'football' },
-  { id: 529,  name: 'Barcelona',    logo: 'https://media.api-sports.io/football/teams/529.png',  sport: 'football' },
-  { id: 541,  name: 'Real Madrid',  logo: 'https://media.api-sports.io/football/teams/541.png',  sport: 'football' },
-]
+const quickTeams = FOOTBALL_POPULAR_QUICK_TEAMS.map((t) => ({
+  ...t,
+  logo: footballTeamLogoUrl(t.id)
+}))
 
 // ── State ────────────────────────────────────────────────────────────────────
 const sport         = ref('football')

@@ -313,7 +313,7 @@ public class MatchController : ControllerBase
 
             match.Statistics = statistics;
 
-            // Futbol maçları için olayları da çek (goller, kartlar, değişiklikler)
+            // Futbol maçları için olayları ve kadroları çek
             if (match.SportType == SportType.Football)
             {
                 try
@@ -324,6 +324,30 @@ public class MatchController : ControllerBase
                 catch (Exception evEx)
                 {
                     Console.WriteLine($"Olaylar çekilemedi: {evEx.Message}");
+                }
+
+                try
+                {
+                    match.Lineups = await _externalApiService.FetchFootballMatchLineupsAsync(
+                        externalId.Value, match.HomeTeam, match.AwayTeam);
+                }
+                catch (Exception luEx)
+                {
+                    Console.WriteLine($"Kadrolar çekilemedi: {luEx.Message}");
+                }
+
+                if (string.IsNullOrWhiteSpace(match.StadiumName))
+                {
+                    try
+                    {
+                        var fromFixture = await _externalApiService.FetchFootballMatchByFixtureIdAsync(externalId.Value);
+                        if (!string.IsNullOrWhiteSpace(fromFixture?.StadiumName))
+                            match.StadiumName = fromFixture.StadiumName;
+                    }
+                    catch (Exception stEx)
+                    {
+                        Console.WriteLine($"Stadyum bilgisi çekilemedi: {stEx.Message}");
+                    }
                 }
             }
         }

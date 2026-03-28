@@ -16,6 +16,7 @@ public interface IExternalApiService
     Task<Dictionary<string, object>?> FetchBasketballMatchStatisticsAsync(int gameId);
     Task<Dictionary<string, object>?> FetchVolleyballMatchStatisticsAsync(int gameId);
     Task<List<Dictionary<string, object>>?> FetchFootballMatchEventsAsync(int fixtureId);
+    Task<FootballMatchLineupsDto?> FetchFootballMatchLineupsAsync(int fixtureId, string homeTeamName, string awayTeamName);
 
     // ── Son hafta maç sonuçları (CollectAPI) ──────────────────────────────────────
     Task<List<MatchResultDto>> FetchFootballResultsFromCollectApiAsync(string leagueKey, string? date = null);
