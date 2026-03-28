@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const NEWS_API_KEY = 'pub_2e338f833cec4955b6d03a0882c60f97'
+const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY
 const BASE_URL = 'https://newsdata.io/api/1/news'
 
 // ── Sadece bu 3 spor dalına ait haberler gösterilecek ────────────────────────
