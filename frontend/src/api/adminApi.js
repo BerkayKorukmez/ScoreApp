@@ -9,8 +9,21 @@ export const fetchAdminMatches = async (page = 1, pageSize = 50, search = '') =>
   return response.data
 }
 
-export const toggleMatchVisibility = async (matchId) => {
-  const response = await axios.patch(`/admin/matches/${encodeURIComponent(matchId)}/visibility`)
+export const toggleMatchVisibility = async (matchId, matchData = null) => {
+  const body = matchData
+    ? {
+        homeTeam: matchData.homeTeam,
+        awayTeam: matchData.awayTeam,
+        league: matchData.league,
+        sportType: matchData.sportType,
+        status: matchData.status,
+        startTime: matchData.startTime
+      }
+    : undefined
+  const response = await axios.patch(
+    `/admin/matches/${encodeURIComponent(matchId)}/visibility`,
+    body
+  )
   return response.data
 }
 

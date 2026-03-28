@@ -106,6 +106,45 @@ public partial class ExternalApiService
         }
     }
 
+    /// <summary>
+    /// API-Sports game ID ile tek maç (geçmiş maç detayı).
+    /// </summary>
+    public async Task<Match?> FetchBasketballMatchByGameIdAsync(int gameId)
+    {
+        try
+        {
+            _logger.LogInformation("Basketbol tek mac cekiliyor. Id: {Id}", gameId);
+
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v1.basketball.api-sports.io/games?id={gameId}");
+            request.Headers.Add("x-apisports-key", GetApiKey("Basketball"));
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (HasApiErrors(doc.RootElement, "Basketbol tek mac"))
+                return null;
+
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array ||
+                responseArray.GetArrayLength() < 1)
+            {
+                _logger.LogWarning("Basketbol mac bulunamadi. Id: {Id}", gameId);
+                return null;
+            }
+
+            return ParseBasketballGames(responseArray).FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Basketbol tek mac cekilemedi. Id: {Id}", gameId);
+            return null;
+        }
+    }
+
     // =========================================================================
     // BASKETBOL — Maç istatistikleri (çeyrek skorları)
     // =========================================================================

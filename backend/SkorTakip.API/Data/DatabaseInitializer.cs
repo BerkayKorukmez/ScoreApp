@@ -25,6 +25,7 @@ public static class DatabaseInitializer
             EnsureTablesExist(context, logger);
             EnsureSportTypeColumn(context, logger);
             EnsureFavoriteMatchesTable(context, logger);
+            EnsureAiChatMessagesTable(context, logger);
             EnsureMediaAndLeagueColumns(context, logger);
             EnsureIsHiddenColumn(context, logger);
         }
@@ -247,6 +248,49 @@ END$$;";
             {
                 logger.LogError(ex2, "FavoriteMatches tablosu olusturulamadi!");
             }
+        }
+    }
+
+    private static void EnsureAiChatMessagesTable(ApplicationDbContext context, ILogger logger)
+    {
+        logger.LogInformation("AiChatMessages tablosu kontrol ediliyor...");
+
+        const string sql = @"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'AiChatMessages'
+    ) THEN
+        CREATE TABLE ""AiChatMessages"" (
+            ""Id"" SERIAL PRIMARY KEY,
+            ""UserId"" TEXT NOT NULL,
+            ""Role"" VARCHAR(20) NOT NULL,
+            ""Text"" TEXT NOT NULL,
+            ""CreatedAt"" TIMESTAMP NOT NULL,
+            CONSTRAINT ""FK_AiChatMessages_AspNetUsers_UserId""
+                FOREIGN KEY (""UserId"")
+                REFERENCES ""AspNetUsers"" (""Id"")
+                ON DELETE CASCADE
+        );
+        CREATE INDEX ""IX_AiChatMessages_UserId"" ON ""AiChatMessages"" (""UserId"");
+        CREATE INDEX ""IX_AiChatMessages_CreatedAt"" ON ""AiChatMessages"" (""CreatedAt"");
+        RAISE NOTICE 'AiChatMessages tablosu olusturuldu.';
+    ELSE
+        RAISE NOTICE 'AiChatMessages tablosu zaten mevcut.';
+    END IF;
+END$$;";
+
+        try
+        {
+            context.Database.ExecuteSqlRaw(sql);
+            logger.LogInformation("AiChatMessages tablosu kontrol edildi / olusturuldu.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "AiChatMessages tablosu olusturulurken hata olustu.");
         }
     }
 }

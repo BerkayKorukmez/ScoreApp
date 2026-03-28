@@ -43,13 +43,25 @@
       </div>
 
       <!-- SAĞ PANEL -->
-      <StandingsPanel
-        :league-info="activeStandingsLeague"
-        :standings="leagueStandings"
-        :is-loading="isStandingsLoading"
-        :sport="selectedSport"
-        @select-league="onStandingsLeagueSelect"
-      />
+      <div class="right-panel-wrapper">
+        <!-- Futbol: Puan Tablosu + Gol Krallığı sekmeli panel -->
+        <FootballRightPanel
+          v-if="selectedSport === 'football'"
+          :league-info="activeStandingsLeague"
+          :standings="leagueStandings"
+          :is-standings-loading="isStandingsLoading"
+          @select-league="onStandingsLeagueSelect"
+        />
+        <!-- Diğer sporlar: sadece puan tablosu -->
+        <StandingsPanel
+          v-else
+          :league-info="activeStandingsLeague"
+          :standings="leagueStandings"
+          :is-loading="isStandingsLoading"
+          :sport="selectedSport"
+          @select-league="onStandingsLeagueSelect"
+        />
+      </div>
     </div>
 
   </div>
@@ -70,7 +82,8 @@ import MatchFilterBar  from '../components/match/MatchFilterBar.vue'
 import LeagueGroup     from '../components/match/LeagueGroup.vue'
 import LoadingSpinner  from '../components/common/LoadingSpinner.vue'
 import EmptyState      from '../components/common/EmptyState.vue'
-import StandingsPanel  from '../components/standings/StandingsPanel.vue'
+import StandingsPanel     from '../components/standings/StandingsPanel.vue'
+import FootballRightPanel from '../components/standings/FootballRightPanel.vue'
 
 const router    = useRouter()
 const authStore = useAuthStore()
@@ -152,6 +165,12 @@ watch(selectedLeagueInfo, (val) => {
   max-width: 1400px;
   margin: 0 auto;
   min-height: calc(100vh - 112px);
+}
+
+.right-panel-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .left-panel {

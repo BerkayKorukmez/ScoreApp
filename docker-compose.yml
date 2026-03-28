@@ -35,6 +35,8 @@ services:
       - ApiSports__BasketballApiKey=${BASKETBALL_API_KEY}
       - ApiSports__VolleyballApiKey=${VOLLEYBALL_API_KEY}
       - CollectApi__ApiKey=${COLLECT_API_KEY}
+      - SportCollectApi__ApiKey=${SPORT_COLLECT_API_KEY}
+      - Gemini__ApiKey=${GEMINI_API_KEY}
       - AllowedOrigins=${ALLOWED_ORIGINS}
     depends_on:
       postgres:

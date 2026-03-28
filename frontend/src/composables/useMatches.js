@@ -34,18 +34,26 @@ export function useMatches(selectedSportRef) {
       AllMatches: (allMatches) => {
         if (!Array.isArray(allMatches) || allMatches.length === 0) return
         allMatches.forEach((m) => {
+          if (!m || m.id == null) return
           const index = matches.value.findIndex((x) => x.id === m.id)
           if (index !== -1) matches.value.splice(index, 1, m)
           else matches.value.push(m)
         })
       },
       MatchUpdated: (m) => {
+        if (!m || m.id == null) return
         const index = matches.value.findIndex((x) => x.id === m.id)
         if (index !== -1) matches.value.splice(index, 1, m)
         else matches.value.push(m)
       },
       MatchRemoved: (matchId) => {
-        matches.value = matches.value.filter((m) => m.id !== matchId)
+        const id = typeof matchId === 'object' && matchId?.id != null ? matchId.id : matchId
+        if (id == null) return
+        matches.value = matches.value.filter((m) => String(m.id) !== String(id))
+      },
+      // Admin görünürlük değişikliği — listeyi yeniden çek (merge hatası önlenir)
+      MatchVisibilityChanged: () => {
+        fetchInitialMatches()
       }
     })
   }

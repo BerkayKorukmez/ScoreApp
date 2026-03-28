@@ -54,6 +54,8 @@
 
     <div class="header-right">
       <template v-if="authStore.isAuthenticated">
+        <!-- AI Sohbet (spor asistanı) -->
+        <AiChatPanel />
         <!-- Admin paneli linki (sadece admin kullanıcılara) -->
         <router-link v-if="authStore.isAdmin" to="/admin" class="btn-admin">
           ⚡ Admin
@@ -76,6 +78,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import AiChatPanel from './ai/AiChatPanel.vue'
 
 const route = useRoute()
 const router = useRouter()

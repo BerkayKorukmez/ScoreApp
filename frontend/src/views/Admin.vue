@@ -309,7 +309,15 @@ const loadMatches = async () => {
 const toggleMatch = async (match) => {
   togglingMatch.value = match.id
   try {
-    const res = await toggleMatchVisibility(match.id)
+    const matchData = {
+      homeTeam: match.homeTeam,
+      awayTeam: match.awayTeam,
+      league: match.league,
+      sportType: match.sportType,
+      status: match.status,
+      startTime: match.startTime
+    }
+    const res = await toggleMatchVisibility(match.id, matchData)
     match.isHidden = res.isHidden
   } catch (e) {
     console.error('Görünürlük değiştirilemedi:', e)
@@ -408,8 +416,8 @@ const submitDeleteUser = async () => {
 }
 
 // ─── Yardımcı ─────────────────────────────────────────────────────────────────
-const sportLabel = (type) => ({ 0: 'Futbol', 1: 'Basketbol', 2: 'Voleybol', 3: 'Tenis' }[type] ?? '?')
-const sportClass = (type) => ({ 0: 'football', 1: 'basketball', 2: 'volleyball', 3: 'tennis' }[type] ?? '')
+const sportLabel = (type) => ({ 0: 'Futbol', 1: 'Basketbol', 2: 'Amerikan Futbolu', 3: 'Voleybol', 4: 'Tenis' }[type] ?? '?')
+const sportClass = (type) => ({ 0: 'football', 1: 'basketball', 2: 'american-football', 3: 'volleyball', 4: 'tennis' }[type] ?? '')
 const statusLabel = (s) => ({ 0: 'Planlandı', 1: 'Canlı', 2: 'Tamamlandı', 3: 'Ertelendi', 4: 'İptal' }[s] ?? '?')
 const statusClass = (s) => ({ 0: 'scheduled', 1: 'live', 2: 'finished', 3: 'postponed', 4: 'cancelled' }[s] ?? '')
 

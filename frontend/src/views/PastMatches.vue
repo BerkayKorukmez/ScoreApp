@@ -27,26 +27,11 @@
       <div class="header-title-section">
         <h1 class="page-title">📅 Geçmiş Maçlar</h1>
         <p class="page-desc">
-          <template v-if="selectedSport === 'football'">
-            Tarih seçin — futbol maçları <strong>CollectAPI</strong> ile (Süper Lig, Premier League, UCL vb.) listelenir.
-          </template>
-          <template v-else>
-            Geçmiş tarihlerdeki maç sonuçlarını inceleyin
-          </template>
+          Tarih seçin — tüm futbol liglerinden geçmiş maç sonuçlarını görüntüleyin
         </p>
       </div>
 
       <div class="header-filters">
-        <!-- Spor Seçimi -->
-        <div class="filter-group">
-          <label class="filter-label">Spor</label>
-          <select v-model="selectedSport" class="filter-select">
-            <option v-for="sport in SPORTS" :key="sport.id" :value="sport.id">
-              {{ sport.icon }} {{ sport.label }}
-            </option>
-          </select>
-        </div>
-
         <!-- Tarih Seçimi -->
         <div class="filter-group">
           <label class="filter-label">Tarih</label>
@@ -58,6 +43,7 @@
               type="date"
               class="date-input"
               :max="maxDate"
+              @change="loadHistory"
             />
             <button
               class="date-nav-btn"
@@ -79,10 +65,11 @@
           <label class="filter-label">Lig</label>
           <select v-model="selectedLeagueKey" class="filter-select league-select">
             <option value="">Tüm Ligler</option>
-            <template v-for="group in leaguesByCountry" :key="group.country">
-              <option disabled class="league-opt-heading" :value="`__head__${group.country}`">
-                — {{ group.country }} —
-              </option>
+            <optgroup
+              v-for="group in leaguesByCountry"
+              :key="group.country"
+              :label="group.country"
+            >
               <option
                 v-for="league in group.leagues"
                 :key="league.key"
@@ -90,7 +77,7 @@
               >
                 {{ league.displayName || league.name }}
               </option>
-            </template>
+            </optgroup>
           </select>
         </div>
 
@@ -346,7 +333,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchMatchHistory, fetchFootballResults } from '../api/matchApi'
 import { useFormatters } from '../composables/useFormatters'
@@ -372,11 +359,8 @@ const allMatches = ref([])
 const lastSearchedDate = ref(null)
 const lastSearchedSport = ref(null)
 
-// Bugünün tarihi (max olarak kullanılır)
-const maxDate = computed(() => {
-  const d = new Date()
-  return d.toISOString().split('T')[0]
-})
+// Bugünün tarihi (max olarak kullanılır) — yerel gün
+const maxDate = computed(() => toYyyyMmDdLocal(new Date()))
 
 // Hızlı tarih kısayolları
 const dateShortcuts = computed(() => {
@@ -386,7 +370,7 @@ const dateShortcuts = computed(() => {
   const addShortcut = (label, daysBack) => {
     const d = new Date(today)
     d.setDate(d.getDate() - daysBack)
-    shortcuts.push({ label, date: d.toISOString().split('T')[0] })
+    shortcuts.push({ label, date: toYyyyMmDdLocal(d) })
   }
 
   addShortcut('Bugün', 0)
@@ -403,16 +387,25 @@ const dateShortcuts = computed(() => {
 /* =============================================
    YARDIMCI FONKSİYONLAR
    ============================================= */
+/** Yerel takvim günü yyyy-MM-dd (toISOString UTC kayması yapmaz — TR saati için kritik) */
+function toYyyyMmDdLocal(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function getYesterday() {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  return d.toISOString().split('T')[0]
+  return toYyyyMmDdLocal(d)
 }
 
 function changeDate(days) {
-  const d = new Date(selectedDate.value)
+  const parts = selectedDate.value.split('-').map(Number)
+  const d = new Date(parts[0], parts[1] - 1, parts[2])
   d.setDate(d.getDate() + days)
-  const newDate = d.toISOString().split('T')[0]
+  const newDate = toYyyyMmDdLocal(d)
   if (newDate <= maxDate.value) {
     selectedDate.value = newDate
     loadHistory()
@@ -486,7 +479,7 @@ const leaguesByCountry = computed(() => {
   const leagueMap = new Map()
 
   allMatches.value
-    .filter((m) => m.sportType === sportData.sportType)
+    .filter((m) => Number(m.sportType) === Number(sportData.sportType))
     .forEach((m) => {
       if (!m.league) return
       const key = getMatchLeagueKey(m)
@@ -613,10 +606,11 @@ const loadHistory = async () => {
 
   try {
     const data = await fetchMatchHistory(selectedSport.value, selectedDate.value)
-    allMatches.value = data
+    allMatches.value = Array.isArray(data) ? data : []
     lastSearchedDate.value = selectedDate.value
     lastSearchedSport.value = selectedSport.value
-    console.log(`Geçmiş maçlar yüklendi: ${data.length} adet (${selectedSport.value}, ${selectedDate.value})`)
+    selectedLeagueKey.value = ''
+    console.log(`Geçmiş maçlar yüklendi: ${allMatches.value.length} adet (${selectedSport.value}, ${selectedDate.value})`)
   } catch (error) {
     console.error('Geçmiş maçlar yüklenemedi:', error)
     if (error.response?.status === 429) {
@@ -634,9 +628,9 @@ const loadHistory = async () => {
    WATCHERS
    ============================================= */
 // Spor değiştiğinde seçili ligi sıfırla ve otomatik ara
-watch(selectedSport, () => {
-  selectedLeagueKey.value = ''
-  if (lastSearchedDate.value) {
+// Sayfa açılışında dünün maçlarını otomatik yükle
+onMounted(() => {
+  if (activeTab.value === 'date') {
     loadHistory()
   }
 })

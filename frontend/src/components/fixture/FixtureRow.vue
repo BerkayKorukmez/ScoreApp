@@ -67,16 +67,16 @@ const props = defineProps({
   highlight: { type: Boolean, default: false }
 })
 
-// status: 0=NotStarted, 1=Live, 2=Finished, 3=HalfTime
-const isLive     = computed(() => props.match.status === 1 || props.match.status === 3)
+// status: 0=NotStarted, 1=Live, 2=HalfTime, 3=Finished
+const isLive     = computed(() => props.match.status === 1 || props.match.status === 2)
 const hasScore   = computed(() => props.match.status !== 0)
 
 const statusLabel = computed(() => {
   switch (props.match.status) {
     case 0: return 'Oynanacak'
     case 1: return 'Canlı'
-    case 2: return 'Bitti'
-    case 3: return 'HT'
+    case 2: return 'HT'
+    case 3: return 'Bitti'
     default: return '-'
   }
 })
@@ -84,8 +84,8 @@ const statusLabel = computed(() => {
 const statusClass = computed(() => ({
   'badge-upcoming':  props.match.status === 0,
   'badge-live':      props.match.status === 1,
-  'badge-finished':  props.match.status === 2,
-  'badge-halftime':  props.match.status === 3,
+  'badge-halftime':  props.match.status === 2,
+  'badge-finished':  props.match.status === 3,
 }))
 
 const dateDay = computed(() => {

@@ -14,6 +14,7 @@ namespace SkorTakip.API.Data;
 
         public DbSet<Match> Matches { get; set; }
         public DbSet<FavoriteMatch> FavoriteMatches { get; set; }
+        public DbSet<AiChatMessage> AiChatMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -44,6 +45,19 @@ namespace SkorTakip.API.Data;
                       .HasForeignKey(e => e.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(e => new { e.UserId, e.MatchId }).IsUnique();
+            });
+
+            builder.Entity<AiChatMessage>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Role).HasMaxLength(20);
+                entity.Property(e => e.Text).HasMaxLength(8000);
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.CreatedAt);
             });
         }
     }

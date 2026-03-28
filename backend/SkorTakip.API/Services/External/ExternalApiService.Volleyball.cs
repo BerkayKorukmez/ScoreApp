@@ -106,6 +106,45 @@ public partial class ExternalApiService
         }
     }
 
+    /// <summary>
+    /// API-Sports game ID ile tek maç (geçmiş maç detayı).
+    /// </summary>
+    public async Task<Match?> FetchVolleyballMatchByGameIdAsync(int gameId)
+    {
+        try
+        {
+            _logger.LogInformation("Voleybol tek mac cekiliyor. Id: {Id}", gameId);
+
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v1.volleyball.api-sports.io/games?id={gameId}");
+            request.Headers.Add("x-apisports-key", GetApiKey("Volleyball"));
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (HasApiErrors(doc.RootElement, "Voleybol tek mac"))
+                return null;
+
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array ||
+                responseArray.GetArrayLength() < 1)
+            {
+                _logger.LogWarning("Voleybol mac bulunamadi. Id: {Id}", gameId);
+                return null;
+            }
+
+            return ParseVolleyballGames(responseArray).FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Voleybol tek mac cekilemedi. Id: {Id}", gameId);
+            return null;
+        }
+    }
+
     // =========================================================================
     // VOLEYBOL — Maç istatistikleri (set skorları)
     // =========================================================================

@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SkorTakip.API.Data;
+using SkorTakip.API.Hubs;
 using SkorTakip.API.Models;
+using SkorTakip.API.Services.Interfaces;
 
 namespace SkorTakip.API.Controllers;
 
@@ -14,19 +17,27 @@ public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IExternalApiService _externalApiService;
+    private readonly IHubContext<MatchHub> _hubContext;
 
-    public AdminController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public AdminController(
+        ApplicationDbContext context,
+        UserManager<ApplicationUser> userManager,
+        IExternalApiService externalApiService,
+        IHubContext<MatchHub> hubContext)
     {
         _context = context;
         _userManager = userManager;
+        _externalApiService = externalApiService;
+        _hubContext = hubContext;
     }
 
     // ════════════════════════════════════════════════════════════
-    //  MAÇ YÖNETİMİ
+    //  MAÇ YÖNETİMİ — Futbol, Basketbol, Voleybol (Tenis hariç)
     // ════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// DB'deki tüm maçları döner (gizliler dahil). Admin paneli için.
+    /// Tüm maçları döner: API (futbol, basketbol, voleybol) + DB. Tenis hariç.
     /// </summary>
     [HttpGet("matches")]
     public async Task<IActionResult> GetMatches(
@@ -34,19 +45,57 @@ public class AdminController : ControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? search = null)
     {
-        var query = _context.Matches.AsQueryable();
+        var visibilityById = await _context.Matches
+            .Select(m => new { m.Id, m.IsHidden })
+            .ToDictionaryAsync(m => m.Id, m => m.IsHidden);
 
-        if (!string.IsNullOrWhiteSpace(search))
+        var allMatches = new List<Match>();
+
+        try
         {
-            search = search.ToLower();
-            query = query.Where(m =>
-                m.HomeTeam.ToLower().Contains(search) ||
-                m.AwayTeam.ToLower().Contains(search) ||
-                m.League.ToLower().Contains(search));
+            var footballTask = _externalApiService.FetchFootballMatchesAsync();
+            var basketballTask = _externalApiService.FetchBasketballMatchesAsync();
+            var volleyballTask = _externalApiService.FetchVolleyballMatchesAsync();
+            await Task.WhenAll(footballTask, basketballTask, volleyballTask);
+
+            allMatches.AddRange(await footballTask);
+            allMatches.AddRange(await basketballTask);
+            allMatches.AddRange(await volleyballTask);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Admin maç çekme hatası: {ex.Message}");
         }
 
-        var total = await query.CountAsync();
-        var matches = await query
+        var dbMatches = await _context.Matches
+            .Where(m => m.SportType != SportType.Tennis)
+            .ToListAsync();
+
+        var seenIds = new HashSet<string>();
+        foreach (var m in allMatches)
+            seenIds.Add(m.Id);
+        foreach (var m in dbMatches)
+        {
+            if (!seenIds.Contains(m.Id))
+            {
+                allMatches.Add(m);
+                seenIds.Add(m.Id);
+            }
+        }
+
+        var searchLower = search?.Trim().ToLower();
+        if (!string.IsNullOrEmpty(searchLower))
+        {
+            allMatches = allMatches
+                .Where(m =>
+                    (m.HomeTeam?.ToLower().Contains(searchLower) ?? false) ||
+                    (m.AwayTeam?.ToLower().Contains(searchLower) ?? false) ||
+                    (m.League?.ToLower().Contains(searchLower) ?? false))
+                .ToList();
+        }
+
+        var total = allMatches.Count;
+        var paged = allMatches
             .OrderByDescending(m => m.StartTime)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -64,11 +113,11 @@ public class AdminController : ControllerBase
                 m.SportType,
                 m.Status,
                 m.StartTime,
-                m.IsHidden
+                IsHidden = visibilityById.TryGetValue(m.Id, out var vis) && vis
             })
-            .ToListAsync();
+            .ToList();
 
-        return Ok(new { total, page, pageSize, data = matches });
+        return Ok(new { total, page, pageSize, data = paged });
     }
 
     /// <summary>
@@ -76,30 +125,62 @@ public class AdminController : ControllerBase
     /// Eğer maç DB'de yoksa yeni kayıt oluşturur (sadece ID + IsHidden).
     /// </summary>
     [HttpPatch("matches/{id}/visibility")]
-    public async Task<IActionResult> ToggleMatchVisibility(string id)
+    public async Task<IActionResult> ToggleMatchVisibility(string id, [FromBody] ToggleVisibilityRequest? body = null)
     {
         var match = await _context.Matches.FindAsync(id);
 
         if (match == null)
         {
-            // Maç DB'de yok (live/API maçı) — stub kayıt oluştur
+            // Maç DB'de yok (API maçı) — gizlilik için kayıt oluştur (body'den veri varsa kullan)
+            var homeTeam = body?.HomeTeam ?? "_";
+            var awayTeam = body?.AwayTeam ?? "_";
+            var league   = body?.League   ?? "_";
             match = new Match
             {
-                Id       = id,
-                HomeTeam = "?",
-                AwayTeam = "?",
-                League   = "?",
-                IsHidden = true
+                Id         = id,
+                HomeTeam   = homeTeam,
+                AwayTeam   = awayTeam,
+                League     = league,
+                SportType  = body?.SportType ?? SportType.Football,
+                Status     = body?.Status ?? MatchStatus.NotStarted,
+                StartTime  = body?.StartTime ?? DateTime.UtcNow,
+                IsHidden   = true
             };
             _context.Matches.Add(match);
             await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.SendAsync("MatchVisibilityChanged", id, true);
             return Ok(new { id, isHidden = true });
         }
 
-        match.IsHidden = !match.IsHidden;
-        await _context.SaveChangesAsync();
+        var wasStub = match.HomeTeam == "?" || match.HomeTeam == "_";
 
-        return Ok(new { id, isHidden = match.IsHidden });
+        if (match.IsHidden)
+        {
+            match.IsHidden = false;
+            if (wasStub && body != null)
+            {
+                match.HomeTeam   = body.HomeTeam ?? match.HomeTeam;
+                match.AwayTeam   = body.AwayTeam ?? match.AwayTeam;
+                match.League     = body.League   ?? match.League;
+                match.SportType  = body.SportType ?? match.SportType;
+            }
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.SendAsync("MatchVisibilityChanged", id, false);
+            return Ok(new { id, isHidden = false });
+        }
+        else
+        {
+            match.IsHidden = true;
+            if (body != null)
+            {
+                match.HomeTeam   = body.HomeTeam ?? match.HomeTeam;
+                match.AwayTeam   = body.AwayTeam ?? match.AwayTeam;
+                match.League     = body.League   ?? match.League;
+            }
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.SendAsync("MatchVisibilityChanged", id, true);
+            return Ok(new { id, isHidden = true });
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -221,3 +302,12 @@ public class AdminController : ControllerBase
 }
 
 public record ResetPasswordRequest(string NewPassword);
+
+public record ToggleVisibilityRequest(
+    string? HomeTeam,
+    string? AwayTeam,
+    string? League,
+    Models.SportType? SportType,
+    MatchStatus? Status,
+    DateTime? StartTime
+);

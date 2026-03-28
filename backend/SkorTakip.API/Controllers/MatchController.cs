@@ -67,7 +67,7 @@ public class MatchController : ControllerBase
             externalMatches = externalMatches.Where(m => !hiddenIds.Contains(m.Id)).ToList();
 
             var dbQuery = _context.Matches
-                .Where(m => m.SportType == sportType.Value && !m.IsHidden)
+                .Where(m => m.SportType == sportType.Value && !m.IsHidden && m.HomeTeam != "?" && m.HomeTeam != "_")
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(league))
@@ -98,7 +98,9 @@ public class MatchController : ControllerBase
             return Ok(combined);
         }
 
-        var query = _context.Matches.Where(m => !m.IsHidden).AsQueryable();
+        var query = _context.Matches
+            .Where(m => !m.IsHidden && m.HomeTeam != "?" && m.HomeTeam != "_")
+            .AsQueryable();
 
         if (!string.IsNullOrEmpty(league))
             query = query.Where(m => m.League == league);
@@ -122,9 +124,7 @@ public class MatchController : ControllerBase
     }
 
     /// <summary>
-    /// Belirtilen tarih ve spor tipine göre geçmiş maçları döner.
-    /// Geçmiş tarihler için önce DB kontrol edilir; bulunursa API'ye istek atılmaz.
-    /// Bulunmazsa dış API'den çekilip tamamlanmış maçlar DB'ye kaydedilir.
+    /// Belirtilen tarih ve spor tipine göre geçmiş maçları API'den çeker.
     /// Tarih formatı: yyyy-MM-dd (örn: 2026-03-01)
     /// </summary>
     [HttpGet("history")]
@@ -135,28 +135,7 @@ public class MatchController : ControllerBase
         if (string.IsNullOrWhiteSpace(date) || !DateTime.TryParse(date, out var parsedDate))
             return BadRequest("Geçerli bir tarih giriniz (yyyy-MM-dd).");
 
-        var dayStart = parsedDate.Date;
-        var dayEnd   = dayStart.AddDays(1);
-        var isToday  = dayStart == DateTime.UtcNow.Date;
-
-        // ── Geçmiş tarihler için önce DB'yi kontrol et (futbol hariç — CollectAPI) ─
-        if (!isToday && sportType != SportType.Football)
-        {
-            var dbMatches = await _context.Matches
-                .Where(m => m.SportType == sportType
-                         && m.StartTime >= dayStart
-                         && m.StartTime < dayEnd)
-                .OrderByDescending(m => m.StartTime)
-                .ToListAsync();
-
-            if (dbMatches.Any())
-            {
-                Console.WriteLine($"Geçmiş maçlar DB'den döndürüldü: {dbMatches.Count} adet ({sportType}, {date})");
-                return Ok(dbMatches);
-            }
-        }
-
-        // ── API'den çek ──────────────────────────────────────────────────────────
+        // ── Tüm sporlar için API'den çek (ücretli API — limit yok) ────────────────
         List<Match> matches;
         try
         {
@@ -174,7 +153,7 @@ public class MatchController : ControllerBase
             matches = new List<Match>();
         }
 
-        // ── Tamamlanmış maçları DB'ye kaydet (CollectAPI sentetik id'leri kaydetme) ─
+        // ── Tamamlanmış maçları DB'ye kaydet (sentetik id'leri kaydetme) ─
         // (bugün biten maçlar da dahil — yarın DB'den gelsin diye)
         if (matches.Any())
         {
@@ -193,19 +172,57 @@ public class MatchController : ControllerBase
 
                 var newMatches = finishedMatches
                     .Where(m => !existingIds.Contains(m.Id))
+                    .GroupBy(m => m.Id)
+                    .Select(g => g.First())
                     .ToList();
 
                 if (newMatches.Any())
                 {
-                    _context.Matches.AddRange(newMatches);
-                    await _context.SaveChangesAsync();
-                    Console.WriteLine($"DB'ye kaydedildi: {newMatches.Count} yeni biten maç ({sportType}, {date})");
+                    try
+                    {
+                        _context.Matches.AddRange(newMatches);
+                        await _context.SaveChangesAsync();
+                        Console.WriteLine($"DB'ye kaydedildi: {newMatches.Count} yeni biten maç ({sportType}, {date})");
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        _context.ChangeTracker.Clear();
+                        Console.WriteLine($"Geçmiş maç DB kaydı atlandı (DbUpdate): {ex.InnerException?.Message ?? ex.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _context.ChangeTracker.Clear();
+                        Console.WriteLine($"Geçmiş maç DB kaydı atlandı: {ex.Message}");
+                    }
                 }
             }
         }
 
         matches = matches.OrderByDescending(m => m.StartTime).ToList();
         return Ok(matches);
+    }
+
+    // ── Sabit route'lar {id}'den ÖNCE olmalı ─────────────────────────────────────
+    [HttpGet("goalKings")]
+    public async Task<IActionResult> GetGoalKings([FromQuery] string? league)
+    {
+        if (string.IsNullOrWhiteSpace(league))
+            return BadRequest("league parametresi zorunludur.");
+
+        var list = await _externalApiService.FetchGoalKingsFromSportApiAsync(league.Trim());
+        return Ok(list);
+    }
+
+    [HttpGet("results/football")]
+    public async Task<IActionResult> GetFootballResults(
+        [FromQuery] string? collectApiKey,
+        [FromQuery] string? date)
+    {
+        if (string.IsNullOrWhiteSpace(collectApiKey))
+            return BadRequest("collectApiKey parametresi zorunludur.");
+
+        var results = await _externalApiService.FetchFootballResultsFromCollectApiAsync(collectApiKey, date);
+        return Ok(results);
     }
 
     [HttpGet("{id}")]
@@ -244,11 +261,31 @@ public class MatchController : ControllerBase
             .SelectMany(list => list)
             .FirstOrDefault(m => m.Id == id);
 
+        // 3) Geçmiş maçlar canlı listelerde yok — ID'den API-Sports tek maç çek
+        externalMatch ??= await TryResolvePastMatchByExternalIdAsync(id);
+
         if (externalMatch == null)
             return NotFound();
 
         await TryLoadStatisticsAsync(externalMatch);
         return Ok(externalMatch);
+    }
+
+    /// <summary>
+    /// "Football-12345" / "Basketball-..." formatında ID için fixture/game endpoint'i.
+    /// </summary>
+    private async Task<Match?> TryResolvePastMatchByExternalIdAsync(string id)
+    {
+        if (!ExternalApiService.TryParseSportAndExternalId(id, out var sport, out var extId))
+            return null;
+
+        return sport switch
+        {
+            SportType.Football   => await _externalApiService.FetchFootballMatchByFixtureIdAsync(extId),
+            SportType.Basketball => await _externalApiService.FetchBasketballMatchByGameIdAsync(extId),
+            SportType.Volleyball => await _externalApiService.FetchVolleyballMatchByGameIdAsync(extId),
+            _ => null
+        };
     }
 
     /// <summary>
@@ -349,19 +386,5 @@ public class MatchController : ControllerBase
         await _hubContext.Clients.All.SendAsync("MatchRemoved", id);
 
         return NoContent();
-    }
-
-    // ── CollectAPI: Son hafta maç sonuçları ──────────────────────────────────────
-    // GET /api/match/results/football?collectApiKey=super-lig
-    [HttpGet("results/football")]
-    public async Task<IActionResult> GetFootballResults(
-        [FromQuery] string? collectApiKey,
-        [FromQuery] string? date)
-    {
-        if (string.IsNullOrWhiteSpace(collectApiKey))
-            return BadRequest("collectApiKey parametresi zorunludur.");
-
-        var results = await _externalApiService.FetchFootballResultsFromCollectApiAsync(collectApiKey, date);
-        return Ok(results);
     }
 }

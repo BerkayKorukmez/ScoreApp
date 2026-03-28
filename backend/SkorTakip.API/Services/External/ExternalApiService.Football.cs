@@ -70,15 +70,15 @@ public partial class ExternalApiService
     }
 
     // =========================================================================
-    // FUTBOL — Tarih bazlı geçmiş maçlar
+    // FUTBOL — Tarih bazlı geçmiş maçlar (API-Sports — tüm ligler)
     // =========================================================================
 
     public async Task<List<Match>> FetchFootballMatchesByDateAsync(string date)
     {
-        var cacheKey = $"football_history_collect_{date}";
+        var cacheKey = $"football_history_{date}";
         if (_matchCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
         {
-            _logger.LogInformation("Futbol gecmis (CollectAPI) CACHE. Tarih: {Date} ({Count} mac)", date, cached.Data.Count);
+            _logger.LogInformation("Futbol gecmis CACHE. Tarih: {Date} ({Count} mac)", date, cached.Data.Count);
             return cached.Data;
         }
 
@@ -92,49 +92,89 @@ public partial class ExternalApiService
 
         try
         {
-            _logger.LogInformation("Futbol gecmis maclari CollectAPI'den cekiliyor. Tarih: {Date}", requestedYyyyMmDd);
+            _logger.LogInformation("Futbol gecmis maclari API-Sports'tan cekiliyor. Tarih: {Date}", requestedYyyyMmDd);
 
-            var allMatches = new List<Match>();
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v3.football.api-sports.io/fixtures?date={requestedYyyyMmDd}");
+            request.Headers.Add("x-apisports-key", GetApiKey("Football"));
 
-            // Lig başına tek istek (date parametresi yok — CollectAPI zaten son haftayı döner; tarihi biz süzeriz).
-            // Paylaşılan cache: FetchFootballResultsFromCollectApiAsync(..., null) → collectapi_results_{key}_latest
-            foreach (var league in CollectFootballLeagues.ForHistory)
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
             {
-                try
-                {
-                    var results = await FetchFootballResultsFromCollectApiAsync(league.CollectKey, date: null);
-                    foreach (var r in results)
-                    {
-                        if (!MatchesCollectResultDate(r.Date, requestedYyyyMmDd))
-                            continue;
-
-                        allMatches.Add(MapCollectResultToMatch(r, league, requestedYyyyMmDd));
-                    }
-                }
-                catch (Exception exLeague)
-                {
-                    _logger.LogWarning(exLeague, "CollectAPI gecmis mac — lig atlandi: {League}", league.CollectKey);
-                }
-
-                // CollectAPI ücretsiz planda 429 riski — istekler arası bekleme
-                await Task.Delay(450);
+                foreach (var err in errors.EnumerateObject())
+                    _logger.LogError("Futbol gecmis API hatasi - {Key}: {Value}", err.Name, err.Value);
+                return [];
             }
 
-            var ordered = allMatches
-                .OrderBy(m => m.StartTime)
-                .ToList();
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array)
+            {
+                _logger.LogWarning("Futbol gecmis API yaniti beklenen formatta degil.");
+                return [];
+            }
 
-            _logger.LogInformation("CollectAPI gecmis: {Count} mac. Tarih: {Date}", ordered.Count, requestedYyyyMmDd);
+            var matches = ParseFootballFixtures(responseArray);
+            var ordered = matches.OrderByDescending(m => m.StartTime).ToList();
 
-            // Boş sonucu uzun süre cache'leme (kullanıcı tekrar denerken takılmasın)
-            var historyTtl = ordered.Count == 0 ? TimeSpan.FromMinutes(3) : TimeSpan.FromMinutes(25);
+            _logger.LogInformation("Futbol gecmis: {Count} mac. Tarih: {Date}", ordered.Count, requestedYyyyMmDd);
+
+            var historyTtl = ordered.Count == 0 ? TimeSpan.FromMinutes(5) : TimeSpan.FromMinutes(30);
             _matchCache[cacheKey] = (ordered, DateTime.UtcNow.Add(historyTtl));
             return ordered;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Futbol gecmis (CollectAPI) hata. Tarih: {Date}", date);
+            _logger.LogError(ex, "Futbol gecmis API hatasi. Tarih: {Date}", date);
             return _matchCache.TryGetValue(cacheKey, out var stale) ? stale.Data : [];
+        }
+    }
+
+    /// <summary>
+    /// API-Sports fixture ID ile tek maç (geçmiş maç detayı / istatistik için).
+    /// </summary>
+    public async Task<Match?> FetchFootballMatchByFixtureIdAsync(int fixtureId)
+    {
+        try
+        {
+            _logger.LogInformation("Futbol tek fixture cekiliyor. Id: {Id}", fixtureId);
+
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v3.football.api-sports.io/fixtures?id={fixtureId}");
+            request.Headers.Add("x-apisports-key", GetApiKey("Football"));
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var err in errors.EnumerateObject())
+                    _logger.LogError("Futbol fixture id API hatasi - {Key}: {Value}", err.Name, err.Value);
+                return null;
+            }
+
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array ||
+                responseArray.GetArrayLength() < 1)
+            {
+                _logger.LogWarning("Futbol fixture bulunamadi. Id: {Id}", fixtureId);
+                return null;
+            }
+
+            var matches = ParseFootballFixtures(responseArray);
+            return matches.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Futbol tek fixture cekilemedi. Id: {Id}", fixtureId);
+            return null;
         }
     }
 
@@ -707,6 +747,19 @@ public partial class ExternalApiService
     }
 
     // =========================================================================
+    // Yardımcı: DB MaxLength ile uyum (çok uzun isim/URL 500 üretmesin)
+    // =========================================================================
+
+    private static string TruncateRequired(string? s, int max) =>
+        TruncateOptional(s, max) ?? string.Empty;
+
+    private static string? TruncateOptional(string? s, int max)
+    {
+        if (string.IsNullOrEmpty(s)) return s;
+        return s.Length <= max ? s : s[..max];
+    }
+
+    // =========================================================================
     // Yardımcı: futbol fixture array'ini Match listesine çevirir
     // =========================================================================
 
@@ -737,39 +790,44 @@ public partial class ExternalApiService
                     startTime = parsedDate;
 
                 var statusObj   = fixture.GetProperty("status");
-                var shortStatus = statusObj.GetProperty("short").GetString() ?? string.Empty;
+                var shortStatus = (statusObj.GetProperty("short").GetString() ?? string.Empty).ToUpperInvariant();
                 var elapsed     = statusObj.TryGetProperty("elapsed", out var elapsedEl) &&
                                   elapsedEl.ValueKind == JsonValueKind.Number
                     ? elapsedEl.GetInt32() : 0;
 
                 var status = shortStatus switch
                 {
-                    "FT" => MatchStatus.Finished,
+                    "FT" or "AET" or "PEN" or "FT_PEN" or "AWD" or "WO" or "CANC" or "ABD" => MatchStatus.Finished,
                     "NS" => MatchStatus.NotStarted,
-                    "HT" => MatchStatus.HalfTime,
+                    "HT" or "BT" => MatchStatus.HalfTime,
                     _    => MatchStatus.Live
                 };
+
+                // API bazen bitmiş maçları NS döner (livescore yok, 48 saate kadar güncellenir)
+                // Skor varsa ve maç saati geçmişse → Finished say
+                if (status == MatchStatus.NotStarted && (homeGoals > 0 || awayGoals > 0) && startTime < DateTime.UtcNow.AddHours(-2))
+                    status = MatchStatus.Finished;
 
                 var fixtureId = fixture.GetProperty("id").GetInt32();
 
                 matches.Add(new Match
                 {
                     Id               = $"{SportType.Football}-{fixtureId}",
-                    HomeTeam         = homeTeamObj.GetProperty("name").GetString() ?? string.Empty,
-                    AwayTeam         = awayTeamObj.GetProperty("name").GetString() ?? string.Empty,
+                    HomeTeam         = TruncateRequired(homeTeamObj.GetProperty("name").GetString(), 200),
+                    AwayTeam         = TruncateRequired(awayTeamObj.GetProperty("name").GetString(), 200),
                     HomeScore        = homeGoals,
                     AwayScore        = awayGoals,
-                    League           = league.GetProperty("name").GetString() ?? string.Empty,
-                    LeagueCountry    = league.TryGetProperty("country", out var lcEl) ? lcEl.GetString() : null,
+                    League           = TruncateRequired(league.GetProperty("name").GetString(), 200),
+                    LeagueCountry    = TruncateOptional(league.TryGetProperty("country", out var lcEl) ? lcEl.GetString() : null, 100),
                     ExternalLeagueId = league.TryGetProperty("id", out var liEl) && liEl.ValueKind == JsonValueKind.Number ? liEl.GetInt32() : null,
-                    LeagueFlag       = league.TryGetProperty("flag", out var lfEl) ? lfEl.GetString() : null,
+                    LeagueFlag       = TruncateOptional(league.TryGetProperty("flag", out var lfEl) ? lfEl.GetString() : null, 500),
                     StartTime        = startTime,
                     Minute           = elapsed,
                     Status           = status,
                     SportType        = SportType.Football,
                     ExternalFixtureId = fixtureId,
-                    HomeTeamLogo     = homeTeamObj.TryGetProperty("logo", out var hLogo) ? hLogo.GetString() : null,
-                    AwayTeamLogo     = awayTeamObj.TryGetProperty("logo", out var aLogo) ? aLogo.GetString() : null
+                    HomeTeamLogo     = TruncateOptional(homeTeamObj.TryGetProperty("logo", out var hLogo) ? hLogo.GetString() : null, 500),
+                    AwayTeamLogo     = TruncateOptional(awayTeamObj.TryGetProperty("logo", out var aLogo) ? aLogo.GetString() : null, 500)
                 });
             }
             catch (Exception)

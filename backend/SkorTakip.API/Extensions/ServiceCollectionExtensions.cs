@@ -93,6 +93,9 @@ public static class ServiceCollectionExtensions
         // Match simulation — DB'deki canlı maçları simüle eder
         services.AddHostedService<MatchSimulationService>();
 
+        // AI Chat (Gemini)
+        services.AddHttpClient<IAiChatService, AiChatService>();
+
         return services;
     }
 

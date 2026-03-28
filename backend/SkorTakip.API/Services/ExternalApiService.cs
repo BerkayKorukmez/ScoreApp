@@ -96,4 +96,20 @@ public partial class ExternalApiService : IExternalApiService
         if (lastDash < 0 || lastDash >= matchId.Length - 1) return null;
         return int.TryParse(matchId[(lastDash + 1)..], out var id) ? id : null;
     }
+
+    /// <summary>
+    /// "Football-12345" formatındaki ID'den spor ve harici sayısal ID çıkarır (ilk '-' öncesi enum adı).
+    /// </summary>
+    public static bool TryParseSportAndExternalId(string matchId, out SportType sport, out int externalId)
+    {
+        sport = default;
+        externalId = 0;
+        if (string.IsNullOrWhiteSpace(matchId)) return false;
+        var idx = matchId.IndexOf('-');
+        if (idx <= 0 || idx >= matchId.Length - 1) return false;
+        var prefix = matchId[..idx];
+        var suffix = matchId[(idx + 1)..];
+        if (!int.TryParse(suffix, out externalId)) return false;
+        return Enum.TryParse(prefix, ignoreCase: true, out sport);
+    }
 }

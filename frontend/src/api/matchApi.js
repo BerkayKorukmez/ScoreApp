@@ -117,6 +117,21 @@ export const fetchFootballResults = async (collectApiKey, date = null) => {
 }
 
 /**
+ * Gol krallığı (CollectAPI sport).
+ * @param {string} league - Lig key (ör: 'super-lig')
+ * @returns {Array} [{ name, goals }]
+ */
+export const fetchGoalKings = async (league) => {
+  if (!league) return []
+  const response = await http.get('/match/goalKings', { params: { league } })
+  const data = Array.isArray(response.data) ? response.data : []
+  return data.map((item) => ({
+    name: item.name ?? '',
+    goals: typeof item.goals === 'number' ? item.goals : parseInt(item.goals, 10) || 0
+  }))
+}
+
+/**
  * ID'ye göre tek bir maç çeker
  * @param {string} matchId
  */

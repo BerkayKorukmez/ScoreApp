@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using SkorTakip.API.Data;
 using SkorTakip.API.Hubs;
 using SkorTakip.API.Models;
 using SkorTakip.API.Services.Interfaces;
@@ -8,6 +10,7 @@ namespace SkorTakip.API.Services;
 /// <summary>
 /// Her 2 dakikada bir tüm sporların maçlarını API'den çeker,
 /// değişen maçları WebSocket üzerinden bağlı tüm istemcilere gönderir.
+/// Admin tarafından gizlenen maçlar broadcast edilmez.
 /// </summary>
 public class LiveMatchService : BackgroundService, ILiveMatchService
 {
@@ -71,10 +74,17 @@ public class LiveMatchService : BackgroundService, ILiveMatchService
 
         _logger.LogInformation("LiveMatchService: Toplam {Count} mac API'den alindi.", allMatches.Count);
 
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var hiddenIds = await db.Matches.Where(m => m.IsHidden).Select(m => m.Id).ToListAsync();
+        var hiddenSet = hiddenIds.ToHashSet();
+
         var updatedCount = 0;
 
         foreach (var match in allMatches)
         {
+            if (hiddenSet.Contains(match.Id))
+                continue;
+
             if (_matchCache.TryGetValue(match.Id, out var cached))
             {
                 if (cached.HomeScore != match.HomeScore ||

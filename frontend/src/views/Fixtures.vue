@@ -6,40 +6,11 @@
       <h1 class="page-title">
         <span class="icon">📅</span> Fikstür
       </h1>
-      <p class="page-subtitle">Takım veya lig seçerek sezon fikstürüne ulaş</p>
+      <p class="page-subtitle">Takım arayarak sezon fikstürüne ulaş</p>
     </div>
 
     <!-- ── Arama Paneli ────────────────────────────────────────────── -->
     <div class="search-panel">
-
-      <!-- Spor seçici -->
-      <div class="sport-tabs">
-        <button
-          v-for="s in sports"
-          :key="s.id"
-          :class="['sport-tab', { active: sport === s.id }]"
-          @click="onSportChange(s.id)"
-        >
-          <span class="tab-icon">{{ s.icon }}</span>
-          {{ s.label }}
-        </button>
-      </div>
-
-      <!-- Takım/Lig toggle -->
-      <div class="kind-tabs">
-        <button
-          :class="['kind-tab', { active: kind === 'team' }]"
-          @click="onKindChange('team')"
-        >
-          👤 Takım
-        </button>
-        <button
-          :class="['kind-tab', { active: kind === 'league' }]"
-          @click="onKindChange('league')"
-        >
-          🏆 Lig
-        </button>
-      </div>
 
       <!-- Arama kutusu -->
       <div class="search-box-wrapper">
@@ -47,7 +18,7 @@
           <span class="search-icon">🔍</span>
           <input
             v-model="query"
-            :placeholder="kind === 'team' ? 'Takım ara... (ör: Galatasaray)' : 'Lig ara... (ör: Süper Lig)'"
+            placeholder="Takım ara... (ör: Galatasaray)"
             class="search-input"
             @input="onQueryInput"
             @keydown.escape="clearSearch"
@@ -74,7 +45,6 @@
               <span class="result-name">{{ item.name }}</span>
               <span v-if="item.country" class="result-country">{{ item.country }}</span>
             </div>
-            <span class="result-kind">{{ item.kind === 'team' ? 'Takım' : 'Lig' }}</span>
           </button>
         </div>
 
@@ -211,7 +181,7 @@
     <div v-else-if="!selectedItem && query.length === 0" class="welcome-screen">
       <div class="welcome-icon">⚽🏀🏐</div>
       <h2>Fikstür Arama</h2>
-      <p>Yukarıdan bir takım veya lig arayarak o sezonun tüm maçlarını görüntüleyin.</p>
+      <p>Yukarıdan bir takım arayarak o sezonun tüm maçlarını görüntüleyin.</p>
       <div class="quick-teams">
         <p class="quick-label">Popüler takımlar:</p>
         <div class="quick-list">
@@ -232,15 +202,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { searchFixture, fetchFixturesByTeam, fetchFixturesByLeague } from '../api/fixtureApi'
+import { ref, computed } from 'vue'
+import { searchFixture, fetchFixturesByTeam } from '../api/fixtureApi'
 import FixtureRow from '../components/fixture/FixtureRow.vue'
 
 // ── Sabitler ──────────────────────────────────────────────────────────────────
 const sports = [
-  { id: 'football',   label: 'Futbol',    icon: '⚽' },
-  { id: 'basketball', label: 'Basketbol', icon: '🏀' },
-  { id: 'volleyball', label: 'Voleybol',  icon: '🏐' }
+  { id: 'football', label: 'Futbol', icon: '⚽' }
 ]
 
 const quickTeams = [
@@ -256,7 +224,6 @@ const quickTeams = [
 
 // ── State ────────────────────────────────────────────────────────────────────
 const sport         = ref('football')
-const kind          = ref('team')
 const query         = ref('')
 const searchResults = ref([])
 const selectedItem  = ref(null)
@@ -276,14 +243,14 @@ const displaySeason = computed(() => {
   const now = new Date()
   const year = now.getFullYear()
   const base = now.getMonth() < 7 ? year - 1 : year
-  if (sport.value === 'basketball') return `${base}-${base + 1}`
   return String(base)
 })
 
+// status: 0=NotStarted, 1=Live, 2=HalfTime, 3=Finished
 const stats = computed(() => ({
   total:    fixtures.value.length,
-  finished: fixtures.value.filter(m => m.status === 2).length,
-  live:     fixtures.value.filter(m => m.status === 1 || m.status === 3).length,
+  finished: fixtures.value.filter(m => m.status === 3).length,
+  live:     fixtures.value.filter(m => m.status === 1 || m.status === 2).length,
   upcoming: fixtures.value.filter(m => m.status === 0).length
 }))
 
@@ -310,11 +277,11 @@ const monthFilter = (matches) => {
 }
 
 const filteredFinished = computed(() =>
-  monthFilter(fixtures.value.filter(m => m.status === 2))
+  monthFilter(fixtures.value.filter(m => m.status === 3))
     .sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
 )
 const filteredLive = computed(() =>
-  monthFilter(fixtures.value.filter(m => m.status === 1 || m.status === 3))
+  monthFilter(fixtures.value.filter(m => m.status === 1 || m.status === 2))
 )
 const filteredUpcoming = computed(() =>
   monthFilter(fixtures.value.filter(m => m.status === 0))
@@ -322,20 +289,6 @@ const filteredUpcoming = computed(() =>
 )
 
 // ── Metodlar ──────────────────────────────────────────────────────────────────
-const onSportChange = (s) => {
-  sport.value  = s
-  clearSearch()
-}
-
-const onKindChange = (k) => {
-  kind.value = k
-  searchResults.value = []
-  if (selectedItem.value?.kind !== k) {
-    selectedItem.value = null
-    fixtures.value     = []
-  }
-}
-
 const onQueryInput = () => {
   selectedItem.value = null
   clearTimeout(searchTimer)
@@ -343,7 +296,7 @@ const onQueryInput = () => {
   isSearching.value = true
   searchTimer = setTimeout(async () => {
     try {
-      searchResults.value = await searchFixture(query.value, sport.value, kind.value)
+      searchResults.value = await searchFixture(query.value, sport.value, 'team')
     } finally {
       isSearching.value = false
     }
@@ -359,7 +312,6 @@ const selectItem = async (item) => {
 
 const quickSelect = async (t) => {
   sport.value        = t.sport || 'football'
-  kind.value         = 'team'
   selectedItem.value = { id: t.id, name: t.name, logo: t.logo, kind: 'team' }
   query.value        = t.name
   await loadFixtures(selectedItem.value)
@@ -370,11 +322,7 @@ const loadFixtures = async (item) => {
   fixtures.value          = []
   selectedMonth.value     = null
   try {
-    if (item.kind === 'team') {
-      fixtures.value = await fetchFixturesByTeam(item.id, sport.value)
-    } else {
-      fixtures.value = await fetchFixturesByLeague(item.id, sport.value)
-    }
+    fixtures.value = await fetchFixturesByTeam(item.id, sport.value)
   } finally {
     isLoadingFixtures.value = false
   }
@@ -422,49 +370,6 @@ const clearSearch = () => {
   padding: 20px;
   margin-bottom: 20px;
 }
-
-/* Spor tabları */
-.sport-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.sport-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 8px;
-  border: 1px solid #30363d;
-  background: #0d1117;
-  color: #8b949e;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all .18s;
-}
-.sport-tab:hover   { border-color: #58a6ff; color: #58a6ff; }
-.sport-tab.active  { background: #1f6feb; border-color: #1f6feb; color: #fff; }
-.tab-icon { font-size: 16px; }
-
-/* Kind tabları */
-.kind-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.kind-tab {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 1px solid #30363d;
-  background: transparent;
-  color: #8b949e;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all .18s;
-}
-.kind-tab:hover   { border-color: #58a6ff; color: #58a6ff; }
-.kind-tab.active  { background: #21262d; border-color: #58a6ff; color: #58a6ff; }
 
 /* Arama kutusu */
 .search-box-wrapper { position: relative; }
@@ -555,14 +460,6 @@ const clearSearch = () => {
   text-overflow: ellipsis;
 }
 .result-country { font-size: 12px; color: #8b949e; }
-.result-kind {
-  font-size: 11px;
-  color: #8b949e;
-  background: #21262d;
-  padding: 2px 8px;
-  border-radius: 10px;
-  flex-shrink: 0;
-}
 .search-loading { padding: 12px 14px; color: #8b949e; font-size: 13px; }
 .search-empty   { padding: 12px 14px; color: #8b949e; font-size: 13px; }
 

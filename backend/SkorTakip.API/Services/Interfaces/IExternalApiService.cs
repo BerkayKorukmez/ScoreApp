@@ -31,6 +31,11 @@ public interface IExternalApiService
     Task<List<Match>> FetchBasketballMatchesByDateAsync(string date);
     Task<List<Match>> FetchVolleyballMatchesByDateAsync(string date);
 
+    // ── Tek maç (geçmiş / detay — canlı listede yokken) ─────────────────────────
+    Task<Match?> FetchFootballMatchByFixtureIdAsync(int fixtureId);
+    Task<Match?> FetchBasketballMatchByGameIdAsync(int gameId);
+    Task<Match?> FetchVolleyballMatchByGameIdAsync(int gameId);
+
     // ── Fikstür: takım/lig arama ─────────────────────────────────────────────────
     Task<List<TeamSearchResultDto>> SearchFootballTeamsAsync(string query);
     Task<List<TeamSearchResultDto>> SearchBasketballTeamsAsync(string query);
@@ -43,6 +48,9 @@ public interface IExternalApiService
     Task<List<Match>> FetchFootballFixturesByTeamAsync(int teamId, int season);
     Task<List<Match>> FetchBasketballFixturesByTeamAsync(int teamId, string season);
     Task<List<Match>> FetchVolleyballFixturesByTeamAsync(int teamId, int season);
+
+    // ── Gol krallığı (CollectAPI sport) ──────────────────────────────────────────
+    Task<List<GoalKingDto>> FetchGoalKingsFromSportApiAsync(string leagueKey);
 
     // ── Fikstür: lige göre ───────────────────────────────────────────────────────
     Task<List<Match>> FetchFootballFixturesByLeagueAsync(int leagueId, int season);
