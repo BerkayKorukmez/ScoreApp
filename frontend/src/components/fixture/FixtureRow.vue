@@ -63,21 +63,81 @@
       <span class="league-name">{{ match.league }}</span>
     </div>
 
+    <!-- Oynanacak maçlar: AI önizleme (ana sayfa ile aynı API) -->
+    <div class="fixture-actions" @click.stop>
+      <button
+        v-if="authStore.isAuthenticated && match.status === 0"
+        type="button"
+        class="ai-preview-btn"
+        title="Yapay zeka yorumu"
+        aria-label="Yapay zeka yorumu"
+        @click="openAiPreview"
+      >🤖</button>
+    </div>
+
+    <MatchAiPreviewModal
+      :open="aiOpen"
+      :loading="aiLoading"
+      :error="aiError"
+      :result="aiResult"
+      :home-team="match.homeTeam"
+      :away-team="match.awayTeam"
+      @close="closeAiPreview"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { fetchMatchPreview } from '../../api/matchPreviewApi'
+import MatchAiPreviewModal from '../match/MatchAiPreviewModal.vue'
 
 const props = defineProps({
   match:     { type: Object, required: true },
-  highlight: { type: Boolean, default: false }
+  highlight: { type: Boolean, default: false },
+  /** Fikstür sayfası spor seçimi */
+  sport:     { type: String, default: 'football' }
 })
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+const aiOpen = ref(false)
+const aiLoading = ref(false)
+const aiError = ref('')
+const aiResult = ref(null)
+
+const openAiPreview = async () => {
+  aiOpen.value = true
+  aiLoading.value = true
+  aiError.value = ''
+  aiResult.value = null
+  try {
+    const { data } = await fetchMatchPreview({
+      homeTeam: props.match.homeTeam,
+      awayTeam: props.match.awayTeam,
+      leagueName: props.match.league || null,
+      sport: props.sport || 'football'
+    })
+    aiResult.value = data
+  } catch (e) {
+    const d = e.response?.data
+    aiError.value =
+      d?.message ||
+      d?.detail ||
+      d?.title ||
+      (e.response?.status === 401 ? 'Oturum gerekli veya süresi doldu.' : null) ||
+      'Analiz alınamadı. Daha sonra tekrar deneyin.'
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+const closeAiPreview = () => {
+  aiOpen.value = false
+}
 
 /** Fikstür API’sinden gelen maçların `Football-{id}` vb. id’si detay sayfasıyla uyumlu */
 const canGoToDetail = computed(() => !!props.match?.id)
@@ -123,7 +183,7 @@ const dateTime = computed(() => {
 <style scoped>
 .fixture-row {
   display: grid;
-  grid-template-columns: 70px 80px 1fr 80px 1fr 130px;
+  grid-template-columns: 70px 80px 1fr 80px 1fr minmax(96px, 120px) 36px;
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
@@ -243,16 +303,40 @@ const dateTime = computed(() => {
   text-overflow: ellipsis;
 }
 
+.fixture-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.ai-preview-btn {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #58a6ff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.ai-preview-btn:hover {
+  background: #30363d;
+  border-color: #58a6ff;
+}
+
 /* Responsive */
 @media (max-width: 700px) {
   .fixture-row {
-    grid-template-columns: 60px 70px 1fr 60px 1fr;
+    grid-template-columns: 60px 70px 1fr 60px 1fr 36px;
   }
   .match-league { display: none; }
 }
 @media (max-width: 480px) {
   .fixture-row {
-    grid-template-columns: 1fr 60px 1fr;
+    grid-template-columns: 1fr 60px 1fr 36px;
     grid-template-rows: auto auto;
   }
   .match-date, .match-status { display: none; }

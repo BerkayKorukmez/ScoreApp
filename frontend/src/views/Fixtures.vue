@@ -139,6 +139,7 @@
               v-for="match in filteredFinished"
               :key="match.id"
               :match="match"
+              :sport="sport"
             />
           </div>
         </div>
@@ -154,6 +155,7 @@
               v-for="match in filteredLive"
               :key="match.id"
               :match="match"
+              :sport="sport"
               :highlight="true"
             />
           </div>
@@ -170,6 +172,7 @@
               v-for="match in filteredUpcoming"
               :key="match.id"
               :match="match"
+              :sport="sport"
             />
           </div>
         </div>

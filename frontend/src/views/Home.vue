@@ -31,6 +31,7 @@
             :key="leagueKey"
             :league-key="leagueKey"
             :league-name="getLeagueName(leagueKey)"
+            :sport="selectedSport"
             :country="group[0]?.leagueCountry || null"
             :flag="group[0]?.leagueFlag || null"
             :matches="group"

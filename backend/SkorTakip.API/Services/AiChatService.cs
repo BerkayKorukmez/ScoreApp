@@ -45,7 +45,7 @@ public class AiChatService : IAiChatService
         try
         {
             // Gemini REST API: https://ai.google.dev/gemini-api/docs
-            var model = _configuration["Gemini:Model"] ?? "gemini-2.5-flash-lite";
+            var model = _configuration["Gemini:Model"] ?? "gemini-3.1-flash-lite-preview";
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
             var payload = new JsonObject

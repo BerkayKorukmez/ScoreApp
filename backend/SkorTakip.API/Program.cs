@@ -1,12 +1,19 @@
 using SkorTakip.API.Data;
 using SkorTakip.API.Extensions;
 using SkorTakip.API.Hubs;
+using SkorTakip.API.Infrastructure;
 using SkorTakip.API.Middleware;
+
+EnvFileLoader.LoadOptional();
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==================== SERVİS KAYITLARI ====================
 builder.Services.AddControllers();
+builder.Services.AddHttpClient("NewsData", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(45);
+});
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerDocumentation();

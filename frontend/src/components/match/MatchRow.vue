@@ -39,8 +39,16 @@
       </div>
     </div>
 
-    <!-- Favori butonu -->
+    <!-- Favori + oynanacak maçlar için AI önizleme (sohbet panelinden bağımsız) -->
     <div class="match-actions-col">
+      <button
+        v-if="isAuthenticated && match.status === 0"
+        type="button"
+        class="ai-preview-btn"
+        title="Yapay zeka yorumu"
+        aria-label="Yapay zeka yorumu"
+        @click.stop="openAiPreview"
+      >🤖</button>
       <button
         v-if="isAuthenticated"
         class="fav-btn"
@@ -49,21 +57,71 @@
         title="Favorilere ekle / çıkar"
       >★</button>
     </div>
+
+    <MatchAiPreviewModal
+      :open="aiOpen"
+      :loading="aiLoading"
+      :error="aiError"
+      :result="aiResult"
+      :home-team="match.homeTeam"
+      :away-team="match.awayTeam"
+      @close="closeAiPreview"
+    />
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useFormatters } from '../../composables/useFormatters'
+import { fetchMatchPreview } from '../../api/matchPreviewApi'
+import MatchAiPreviewModal from './MatchAiPreviewModal.vue'
 
 const { formatTime } = useFormatters()
 
-defineProps({
+const props = defineProps({
   match:           { type: Object,  required: true },
+  leagueName:      { type: String,  default: '' },
+  sport:           { type: String,  default: 'football' },
   isFavorite:      { type: Boolean, default: false },
   isAuthenticated: { type: Boolean, default: false }
 })
 
 defineEmits(['click', 'toggle-favorite'])
+
+const aiOpen = ref(false)
+const aiLoading = ref(false)
+const aiError = ref('')
+const aiResult = ref(null)
+
+const openAiPreview = async () => {
+  aiOpen.value = true
+  aiLoading.value = true
+  aiError.value = ''
+  aiResult.value = null
+  try {
+    const { data } = await fetchMatchPreview({
+      homeTeam: props.match.homeTeam,
+      awayTeam: props.match.awayTeam,
+      leagueName: props.leagueName || null,
+      sport: props.sport || 'football'
+    })
+    aiResult.value = data
+  } catch (e) {
+    const d = e.response?.data
+    aiError.value =
+      d?.message ||
+      d?.detail ||
+      d?.title ||
+      (e.response?.status === 401 ? 'Oturum gerekli veya süresi doldu.' : null) ||
+      'Analiz alınamadı. Daha sonra tekrar deneyin.'
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+const closeAiPreview = () => {
+  aiOpen.value = false
+}
 </script>
 
 <style scoped>
@@ -174,11 +232,29 @@ defineEmits(['click', 'toggle-favorite'])
 .team-score.is-live { color: #f85149; }
 
 .match-actions-col {
-  width: 36px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
   flex-shrink: 0;
+  min-width: 56px;
+}
+
+.ai-preview-btn {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #58a6ff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.ai-preview-btn:hover {
+  background: #30363d;
+  border-color: #58a6ff;
 }
 
 .fav-btn {

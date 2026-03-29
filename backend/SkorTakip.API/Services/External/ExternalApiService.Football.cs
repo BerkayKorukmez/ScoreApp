@@ -915,7 +915,8 @@ public partial class ExternalApiService
             if (!doc.RootElement.TryGetProperty("response", out var arr) || arr.ValueKind != JsonValueKind.Array)
                 return [];
             var matches = ParseFootballFixtures(arr);
-            _matchCache[cacheKey] = (matches, DateTime.UtcNow.AddMinutes(30));
+            // Takım fikstüründe canlı/bitiş sık değişir; uzun cache yanlış "canlı" gösterimini uzatır
+            _matchCache[cacheKey] = (matches, DateTime.UtcNow.AddMinutes(10));
             return matches;
         }
         catch (Exception ex) { _logger.LogError(ex, "Futbol fikstür (takım) hatası. TeamId: {Id}", teamId); return []; }
@@ -941,7 +942,7 @@ public partial class ExternalApiService
             if (!doc.RootElement.TryGetProperty("response", out var arr) || arr.ValueKind != JsonValueKind.Array)
                 return [];
             var matches = ParseFootballFixtures(arr);
-            _matchCache[cacheKey] = (matches, DateTime.UtcNow.AddMinutes(30));
+            _matchCache[cacheKey] = (matches, DateTime.UtcNow.AddMinutes(10));
             return matches;
         }
         catch (Exception ex) { _logger.LogError(ex, "Futbol fikstür (lig) hatası. LeagueId: {Id}", leagueId); return []; }
@@ -1043,22 +1044,28 @@ public partial class ExternalApiService
                     startTime = parsedDate;
 
                 var statusObj   = fixture.GetProperty("status");
-                var shortStatus = (statusObj.GetProperty("short").GetString() ?? string.Empty).ToUpperInvariant();
+                var shortStatus = (statusObj.GetProperty("short").GetString() ?? string.Empty).Trim().ToUpperInvariant();
                 var elapsed     = statusObj.TryGetProperty("elapsed", out var elapsedEl) &&
                                   elapsedEl.ValueKind == JsonValueKind.Number
                     ? elapsedEl.GetInt32() : 0;
 
+                // API-Sports: short bilinmeyen veya eski kodlar varsayılan Live olursa maçlar günlerce "canlı" kalabiliyor.
                 var status = shortStatus switch
                 {
-                    "FT" or "AET" or "PEN" or "FT_PEN" or "AWD" or "WO" or "CANC" or "ABD" => MatchStatus.Finished,
-                    "NS" => MatchStatus.NotStarted,
+                    "FT" or "AET" or "PEN" or "FT_PEN" or "AWD" or "WO" or "CANC" or "CANCL" or "ABD" or "ABAN"
+                        => MatchStatus.Finished,
+                    "NS" or "TBD" or "PST" or "POSTP" => MatchStatus.NotStarted,
                     "HT" or "BT" => MatchStatus.HalfTime,
-                    _    => MatchStatus.Live
+                    _ => MatchStatus.Live
                 };
 
-                // API bazen bitmiş maçları NS döner (livescore yok, 48 saate kadar güncellenir)
-                // Skor varsa ve maç saati geçmişse → Finished say
+                // API bazen bitmiş maçları NS döner (livescore gecikmesi). Skor var + kickoff üzerinden süre geçtiyse → bitmiş
                 if (status == MatchStatus.NotStarted && (homeGoals > 0 || awayGoals > 0) && startTime < DateTime.UtcNow.AddHours(-2))
+                    status = MatchStatus.Finished;
+
+                // Kickoff'tan ~3 saat sonra normalde maç biter; API hâlâ 1H/2H/LIVE/HT döndürüyorsa bitmiş say (Man City fikstür vb.)
+                var now = DateTime.UtcNow;
+                if ((status == MatchStatus.Live || status == MatchStatus.HalfTime) && startTime < now.AddHours(-3))
                     status = MatchStatus.Finished;
 
                 var fixtureId = fixture.GetProperty("id").GetInt32();

@@ -185,7 +185,7 @@ const loadNews = async (reset = false) => {
     const query = searchQuery.value.trim() || null
     const data = await fetchSportsNews(selectedLanguage.value, query, null)
 
-    if (data.status === 'success' && data.results) {
+    if (data.status === 'success' && Array.isArray(data.results)) {
       articles.value = data.results
       nextPageToken.value = data.nextPage || null
     } else {
@@ -194,8 +194,15 @@ const loadNews = async (reset = false) => {
     }
   } catch (error) {
     console.error('Haber yükleme hatası:', error)
-    if (error.response?.status === 429) {
+    const status = error.response?.status
+    if (status === 429) {
       errorMessage.value = 'API istek limiti aşıldı. Lütfen biraz bekleyip tekrar deneyin.'
+    } else if (status === 401) {
+      errorMessage.value =
+        'Haber API anahtarı geçersiz. Kök .env içinde NEWS_API_KEY güncelleyin ve API sunucusunu yeniden başlatın.'
+    } else if (status === 503) {
+      errorMessage.value =
+        'Haber servisi yapılandırılmamış. Kök .env dosyasına NEWS_API_KEY ekleyin.'
     } else {
       errorMessage.value = 'Haberler yüklenirken bir hata oluştu. Lütfen tekrar deneyin.'
     }
@@ -216,7 +223,7 @@ const loadMoreNews = async () => {
     const query = searchQuery.value.trim() || null
     const data = await fetchSportsNews(selectedLanguage.value, query, nextPageToken.value)
 
-    if (data.status === 'success' && data.results) {
+    if (data.status === 'success' && Array.isArray(data.results)) {
       articles.value.push(...data.results)
       nextPageToken.value = data.nextPage || null
     }

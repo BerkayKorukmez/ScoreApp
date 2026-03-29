@@ -20,6 +20,8 @@
       v-for="match in matches"
       :key="match.id"
       :match="match"
+      :league-name="leagueName"
+      :sport="sport"
       :is-favorite="isFavorite(match.id)"
       :is-authenticated="isAuthenticated"
       @click="$emit('match-click', $event)"
@@ -34,6 +36,8 @@ import MatchRow from './MatchRow.vue'
 defineProps({
   leagueKey:       { type: String,   required: true },
   leagueName:      { type: String,   required: true },
+  /** Ana sayfa spor seçimi — AI önizlemesi için */
+  sport:           { type: String,   default: 'football' },
   country:         { type: String,   default: null },
   flag:            { type: String,   default: null },
   matches:         { type: Array,    required: true },
