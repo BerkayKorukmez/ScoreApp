@@ -55,8 +55,6 @@ public static class EnvFileLoader
         if (string.IsNullOrWhiteSpace(tennisKey))
             tennisKey = G("FOOTBALL_API_KEY");
         SetIfEmpty("ApiSports__TennisApiKey", tennisKey);
-        SetIfEmpty("CollectApi__ApiKey", G("COLLECT_API_KEY"));
-        SetIfEmpty("SportCollectApi__ApiKey", G("SPORT_COLLECT_API_KEY"));
         SetIfEmpty("Gemini__ApiKey", G("GEMINI_API_KEY"));
         SetIfEmpty("Gemini__Model", G("GEMINI_MODEL"));
         var matchPreviewKey = G("MATCH_PREVIEW_GEMINI_API_KEY");

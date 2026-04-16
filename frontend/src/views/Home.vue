@@ -17,17 +17,23 @@
           :leagues-by-country="leaguesByCountry"
           :live-match-count="liveMatchCount"
           :is-authenticated="authStore.isAuthenticated"
+          :search-query="matchSearchQuery"
           @update:active-filter="activeFilter = $event"
           @update:selected-league-key="onLeagueKeyChange"
+          @update:search-query="matchSearchQuery = $event"
         />
 
         <LoadingSpinner v-if="isLoading" label="Maçlar yükleniyor..." />
 
-        <EmptyState v-else-if="Object.keys(groupedMatches).length === 0" />
+        <EmptyState
+          v-else-if="Object.keys(filteredGroupedMatches).length === 0"
+          :title="emptyStateTitle"
+          :subtitle="emptyStateSubtitle"
+        />
 
         <div v-else class="matches-container">
           <LeagueGroup
-            v-for="(group, leagueKey) in groupedMatches"
+            v-for="(group, leagueKey) in filteredGroupedMatches"
             :key="leagueKey"
             :league-key="leagueKey"
             :league-name="getLeagueName(leagueKey)"
@@ -91,6 +97,7 @@ const authStore = useAuthStore()
 
 const selectedSport           = ref('football')
 const activeFilter            = ref('all')
+const matchSearchQuery        = ref('')
 const standingsLeagueOverride = ref(null) // Popüler lig butonundan seçilenler
 
 /* ---------- Composables ---------- */
@@ -108,6 +115,44 @@ const {
   liveMatchCount,
   sportMatchCounts
 } = useLeagues(matches, selectedSport, activeFilter, favoriteMatchIds)
+
+const trLower = (s) => (s ?? '').toLocaleLowerCase('tr-TR')
+
+const matchMatchesSearch = (match, rawQuery) => {
+  const q = rawQuery.trim()
+  if (!q) return true
+  const needle = trLower(q)
+  return (
+    trLower(match.homeTeam).includes(needle) ||
+    trLower(match.awayTeam).includes(needle) ||
+    trLower(match.league).includes(needle) ||
+    trLower(match.leagueCountry).includes(needle)
+  )
+}
+
+/** Arama metnine göre lig grupları (boş aramada groupedMatches ile aynı) */
+const filteredGroupedMatches = computed(() => {
+  const q = matchSearchQuery.value
+  if (!q?.trim()) return groupedMatches.value
+  const out = {}
+  for (const [leagueKey, list] of Object.entries(groupedMatches.value)) {
+    const filtered = list.filter((m) => matchMatchesSearch(m, q))
+    if (filtered.length) out[leagueKey] = filtered
+  }
+  return out
+})
+
+const hasActiveSearch = computed(() => !!matchSearchQuery.value?.trim())
+
+const emptyStateTitle = computed(() =>
+  hasActiveSearch.value ? 'Aramayla eşleşen maç yok' : 'Maç bulunamadı'
+)
+
+const emptyStateSubtitle = computed(() =>
+  hasActiveSearch.value
+    ? 'Takım veya lig adını değiştirip tekrar deneyin.'
+    : 'Farklı bir filtre veya lig seçmeyi deneyin'
+)
 
 // 3) Puan tablosu — maçtan seçilen lig VEYA popüler lig butonundan gelen
 const activeStandingsLeague = computed(() =>
@@ -134,6 +179,7 @@ const goToMatchDetail = (matchId) => {
 const onSportChange = (sport) => {
   selectedSport.value = sport
   activeFilter.value  = 'all'
+  matchSearchQuery.value = ''
   standingsLeagueOverride.value = null
 }
 

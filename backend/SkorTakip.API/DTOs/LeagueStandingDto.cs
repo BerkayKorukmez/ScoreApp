@@ -2,7 +2,8 @@ namespace SkorTakip.API.DTOs;
 
 public class LeagueStandingDto
 {
-    public int Rank { get; set; }
+    public int    Rank     { get; set; }
+    public int?   TeamId   { get; set; }
     public string TeamName { get; set; } = string.Empty;
     public string? TeamLogo { get; set; }
     public int Played { get; set; }

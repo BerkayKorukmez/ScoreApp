@@ -38,8 +38,6 @@ services:
       - ApiSports__BasketballApiKey=${BASKETBALL_API_KEY}
       - ApiSports__VolleyballApiKey=${VOLLEYBALL_API_KEY}
       - ApiSports__TennisApiKey=${TENNIS_API_KEY}
-      - CollectApi__ApiKey=${COLLECT_API_KEY}
-      - SportCollectApi__ApiKey=${SPORT_COLLECT_API_KEY}
       - Gemini__ApiKey=${GEMINI_API_KEY}
       - Gemini__Model=${GEMINI_MODEL:-gemini-3.1-flash-lite-preview}
       - MatchPreview__GeminiApiKey=${MATCH_PREVIEW_GEMINI_API_KEY}

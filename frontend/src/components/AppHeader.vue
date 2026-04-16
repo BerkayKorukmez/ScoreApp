@@ -17,36 +17,49 @@
 
       <!-- Ana navigasyon (detay sayfalarında gizlenir) -->
       <nav v-if="!showBackButton" class="header-nav">
-        <router-link
-          :to="homeRoute"
-          class="nav-link"
-          :class="{ active: isHomePage }"
-        >
-          <span class="nav-icon">🏟️</span>
+        <!-- Maçlar -->
+        <router-link :to="homeRoute" class="nav-link" :class="{ active: isHomePage }">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 3c0 0-2.5 3.5-2.5 5.5s1 3.5 2.5 3.5 2.5-1.5 2.5-3.5S12 3 12 3z"/>
+            <path d="M3.6 7.5l3.9 1.2M16.5 8.7l3.9-1.2M5.5 18l2.8-3.2M15.7 14.8l2.8 3.2M8.5 21l.8-3.5M14.7 17.5l.8 3.5"/>
+          </svg>
           <span class="nav-label">Maçlar</span>
         </router-link>
-        <router-link
-          :to="pastMatchesRoute"
-          class="nav-link"
-          :class="{ active: route.path.endsWith('/past-matches') }"
-        >
-          <span class="nav-icon">📅</span>
+
+        <!-- Geçmiş Maçlar -->
+        <router-link :to="pastMatchesRoute" class="nav-link" :class="{ active: route.path.endsWith('/past-matches') }">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v5h5"/>
+            <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/>
+            <polyline points="12 7 12 12 16 14"/>
+          </svg>
           <span class="nav-label">Geçmiş Maçlar</span>
         </router-link>
-        <router-link
-          :to="fixturesRoute"
-          class="nav-link"
-          :class="{ active: route.path.endsWith('/fixtures') }"
-        >
-          <span class="nav-icon">📅</span>
+
+        <!-- Fikstür -->
+        <router-link :to="fixturesRoute" class="nav-link" :class="{ active: route.path.endsWith('/fixtures') }">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="14" x2="8" y2="14"/>
+            <line x1="12" y1="14" x2="16" y2="14"/>
+            <line x1="8" y1="18" x2="8" y2="18"/>
+            <line x1="12" y1="18" x2="16" y2="18"/>
+          </svg>
           <span class="nav-label">Fikstür</span>
         </router-link>
-        <router-link
-          :to="newsRoute"
-          class="nav-link"
-          :class="{ active: route.path.endsWith('/news') }"
-        >
-          <span class="nav-icon">📰</span>
+
+        <!-- Haberler -->
+        <router-link :to="newsRoute" class="nav-link" :class="{ active: route.path.endsWith('/news') }">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
+            <line x1="10" y1="7" x2="18" y2="7"/>
+            <line x1="10" y1="11" x2="18" y2="11"/>
+            <line x1="10" y1="15" x2="14" y2="15"/>
+          </svg>
           <span class="nav-label">Haberler</span>
         </router-link>
       </nav>
@@ -85,7 +98,11 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 /** Detay sayfalarında geri butonu göster */
-const showBackButton = computed(() => route.name === 'MatchDetail' || route.name === 'UserMatchDetail')
+const showBackButton = computed(() => [
+  'MatchDetail', 'UserMatchDetail',
+  'TeamProfile', 'UserTeamProfile',
+  'PlayerProfile', 'UserPlayerProfile'
+].includes(route.name))
 
 /** Auth state'e göre dinamik rotalar */
 const homeRoute        = computed(() => authStore.isAuthenticated ? '/user'              : '/')
@@ -201,7 +218,10 @@ const handleLogout = () => {
 }
 
 .nav-icon {
-  font-size: 1rem;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: inherit;
 }
 
 /* ---- Sağ Kısım ---- */

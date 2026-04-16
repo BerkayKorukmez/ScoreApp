@@ -19,30 +19,19 @@ public class StandingsController : ControllerBase
     }
 
     /// <summary>
-    /// Futbol ligleri için puan durumu döner.
-    /// collectApiKey varsa CollectAPI kullanılır (Süper Lig, Premier League vb. yerli ligler).
-    /// collectApiKey yoksa leagueId ile API-Sports kullanılır (UCL, UEL, Nations League vb.).
+    /// Futbol ligleri için puan durumu döner (API-Sports üzerinden).
     /// </summary>
     [HttpGet("football")]
     public async Task<IActionResult> GetFootballStandings(
-        [FromQuery] string?  collectApiKey,
-        [FromQuery] int?     leagueId,
-        [FromQuery] int?     season)
+        [FromQuery] int?  leagueId,
+        [FromQuery] int?  season)
     {
-        // CollectAPI yolu — yerli ligler
-        if (!string.IsNullOrWhiteSpace(collectApiKey))
-        {
-            var collectStandings = await _externalApiService.FetchFootballStandingsFromCollectApiAsync(collectApiKey);
-            return Ok(collectStandings);
-        }
-
-        // API-Sports yolu — Avrupa kupaları, milli takım turnuvaları
         if (leagueId is null or <= 0)
-            return BadRequest("collectApiKey veya leagueId parametresi gereklidir.");
+            return BadRequest("leagueId parametresi gereklidir.");
 
         var now            = DateTime.UtcNow;
         var computed       = now.Month >= 8 ? now.Year : now.Year - 1;
-        var resolvedSeason = season ?? Math.Min(computed, 2024);
+        var resolvedSeason = season ?? computed;
 
         var standings = await _externalApiService.FetchFootballStandingsAsync(leagueId.Value, resolvedSeason);
         return Ok(standings);

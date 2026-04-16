@@ -28,6 +28,8 @@ public static class DatabaseInitializer
             EnsureAiChatMessagesTable(context, logger);
             EnsureMediaAndLeagueColumns(context, logger);
             EnsureIsHiddenColumn(context, logger);
+            EnsureMatchCommentsTable(context, logger);
+            EnsureChatBansTable(context, logger);
         }
         catch (Exception ex)
         {
@@ -291,6 +293,94 @@ END$$;";
         catch (Exception ex)
         {
             logger.LogWarning(ex, "AiChatMessages tablosu olusturulurken hata olustu.");
+        }
+    }
+
+    private static void EnsureMatchCommentsTable(ApplicationDbContext context, ILogger logger)
+    {
+        logger.LogInformation("MatchComments tablosu kontrol ediliyor...");
+
+        const string sql = @"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'MatchComments'
+    ) THEN
+        CREATE TABLE ""MatchComments"" (
+            ""Id"" SERIAL PRIMARY KEY,
+            ""MatchId"" VARCHAR(100) NOT NULL,
+            ""UserId"" TEXT NOT NULL,
+            ""Content"" VARCHAR(500) NOT NULL,
+            ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT ""FK_MatchComments_AspNetUsers_UserId""
+                FOREIGN KEY (""UserId"")
+                REFERENCES ""AspNetUsers"" (""Id"")
+                ON DELETE CASCADE
+        );
+        CREATE INDEX ""IX_MatchComments_MatchId"" ON ""MatchComments"" (""MatchId"");
+        CREATE INDEX ""IX_MatchComments_CreatedAt"" ON ""MatchComments"" (""CreatedAt"");
+        RAISE NOTICE 'MatchComments tablosu olusturuldu.';
+    ELSE
+        RAISE NOTICE 'MatchComments tablosu zaten mevcut.';
+    END IF;
+END$$;";
+
+        try
+        {
+            context.Database.ExecuteSqlRaw(sql);
+            logger.LogInformation("MatchComments tablosu kontrol edildi / olusturuldu.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "MatchComments tablosu olusturulurken hata olustu.");
+        }
+    }
+
+    private static void EnsureChatBansTable(ApplicationDbContext context, ILogger logger)
+    {
+        logger.LogInformation("ChatBans tablosu kontrol ediliyor...");
+
+        const string sql = @"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'ChatBans'
+    ) THEN
+        CREATE TABLE ""ChatBans"" (
+            ""Id"" SERIAL PRIMARY KEY,
+            ""UserId"" TEXT NOT NULL,
+            ""BannedByAdminId"" TEXT NOT NULL,
+            ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT ""FK_ChatBans_AspNetUsers_UserId""
+                FOREIGN KEY (""UserId"")
+                REFERENCES ""AspNetUsers"" (""Id"")
+                ON DELETE CASCADE,
+            CONSTRAINT ""FK_ChatBans_AspNetUsers_BannedByAdminId""
+                FOREIGN KEY (""BannedByAdminId"")
+                REFERENCES ""AspNetUsers"" (""Id"")
+                ON DELETE RESTRICT
+        );
+        CREATE UNIQUE INDEX ""IX_ChatBans_UserId"" ON ""ChatBans"" (""UserId"");
+        RAISE NOTICE 'ChatBans tablosu olusturuldu.';
+    ELSE
+        RAISE NOTICE 'ChatBans tablosu zaten mevcut.';
+    END IF;
+END$$;";
+
+        try
+        {
+            context.Database.ExecuteSqlRaw(sql);
+            logger.LogInformation("ChatBans tablosu kontrol edildi / olusturuldu.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "ChatBans tablosu olusturulurken hata olustu.");
         }
     }
 }

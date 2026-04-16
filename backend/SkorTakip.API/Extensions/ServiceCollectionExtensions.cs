@@ -68,6 +68,19 @@ public static class ServiceCollectionExtensions
                 ValidAudience = jwtSettings["Audience"],
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!))
             };
+
+            // SignalR WebSocket bağlantılarında token query string'den okunur
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = ctx =>
+                {
+                    var accessToken = ctx.Request.Query["access_token"];
+                    var path = ctx.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/matchhub"))
+                        ctx.Token = accessToken;
+                    return Task.CompletedTask;
+                }
+            };
         });
 
         services.AddAuthorization();
@@ -92,6 +105,9 @@ public static class ServiceCollectionExtensions
 
         // Match simulation — DB'deki canlı maçları simüle eder
         services.AddHostedService<MatchSimulationService>();
+
+        // Sohbet temizleme — maç bitiminden 1 gün sonra yorumları siler
+        services.AddHostedService<ChatCleanupService>();
 
         // AI Chat (Gemini) — sohbet; maç önizlemesi ayrı servis
         services.AddHttpClient<IAiChatService, AiChatService>();

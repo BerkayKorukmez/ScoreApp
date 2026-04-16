@@ -1,84 +1,110 @@
 using System.Collections.Concurrent;
-using System.Net;
 using SkorTakip.API.DTOs;
 using System.Text.Json;
 
 namespace SkorTakip.API.Services;
 
 /// <summary>
-/// CollectAPI sport/goalKings — gol krallığı (futbol).
-/// Sport API farklı key kullanır: SportCollectApi:ApiKey
+/// Gol krallığı — API-Sports /players/topscorers endpoint'i.
 /// </summary>
 public partial class ExternalApiService
 {
     private static readonly ConcurrentDictionary<string, (List<GoalKingDto> Data, DateTime ExpiresAt)> _goalKingsCache = new();
     private static readonly TimeSpan GoalKingsCacheDuration = TimeSpan.FromMinutes(30);
 
-    public async Task<List<GoalKingDto>> FetchGoalKingsFromSportApiAsync(string leagueKey)
+    public async Task<List<GoalKingDto>> FetchGoalKingsAsync(int leagueId, int season)
     {
-        var cacheKey = $"sport_goalkings_{leagueKey}";
+        var cacheKey = $"goalkings_{leagueId}_{season}";
         if (_goalKingsCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
         {
-            _logger.LogInformation("Gol krallari CACHE: {LeagueKey} ({Count})", leagueKey, cached.Data.Count);
+            _logger.LogInformation("Gol krallari CACHE: leagueId={LeagueId}, season={Season} ({Count})", leagueId, season, cached.Data.Count);
             return cached.Data;
         }
 
         try
         {
-            var apiKey = _configuration["SportCollectApi:ApiKey"]
-                ?? throw new InvalidOperationException("SportCollectApi:ApiKey configuration is missing.");
+            _logger.LogInformation("Gol krallari API-Sports'tan cekiliyor: leagueId={LeagueId}, season={Season}", leagueId, season);
 
-            var url = $"https://api.collectapi.com/sport/goalKings?league={Uri.EscapeDataString(leagueKey)}";
-            using var req = new HttpRequestMessage(HttpMethod.Get, url);
-            req.Headers.Add("authorization", $"apikey {apiKey}");
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v3.football.api-sports.io/players/topscorers?league={leagueId}&season={season}");
+            request.Headers.Add("x-apisports-key", GetApiKey("Football"));
 
-            var response = await _httpClient.SendAsync(req);
-
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                _logger.LogWarning("Sport API 429 — {LeagueKey}", leagueKey);
-                return _goalKingsCache.TryGetValue(cacheKey, out var stale) ? stale.Data : [];
-            }
-
+            var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
+
             var content = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation("Gol krallari API yaniti (ilk 300 karakter): {Content}",
+                content.Length > 300 ? content[..300] : content);
 
             using var doc = JsonDocument.Parse(content);
-            JsonElement items;
 
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                items = doc.RootElement;
-            else if (doc.RootElement.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.Array)
-                items = res;
-            else if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
-                items = data;
-            else
+            if (doc.RootElement.TryGetProperty("errors", out var errors) &&
+                errors.ValueKind == JsonValueKind.Object && errors.EnumerateObject().Any())
             {
-                _logger.LogWarning("Sport goalKings beklenmeyen format: {LeagueKey} — Raw: {Preview}",
-                    leagueKey, content.Length > 500 ? content[..500] + "..." : content);
+                foreach (var err in errors.EnumerateObject())
+                    _logger.LogError("Gol krallari API hatasi - {Key}: {Value}", err.Name, err.Value);
+                return [];
+            }
+
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array)
+            {
+                _logger.LogWarning("Gol krallari API beklenmeyen format: leagueId={LeagueId}", leagueId);
                 return [];
             }
 
             var list = new List<GoalKingDto>();
-            var rank = 0;
-            foreach (var item in items.EnumerateArray())
+            foreach (var item in responseArray.EnumerateArray())
             {
-                rank++;
-                var name  = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                var goals = item.TryGetProperty("goals", out var g)
-                    ? (g.ValueKind == JsonValueKind.Number ? g.GetInt32() : int.TryParse(g.GetString(), out var v) ? v : 0)
-                    : 0;
+                try
+                {
+                    var playerId   = 0;
+                    string playerName = "";
+                    string? playerPhoto = null;
 
-                list.Add(new GoalKingDto { Name = name, Goals = goals });
+                    if (item.TryGetProperty("player", out var playerEl))
+                    {
+                        if (playerEl.TryGetProperty("id",    out var idEl)    && idEl.ValueKind    == JsonValueKind.Number) playerId   = idEl.GetInt32();
+                        if (playerEl.TryGetProperty("name",  out var nameEl)  && nameEl.ValueKind  == JsonValueKind.String) playerName = nameEl.GetString() ?? "";
+                        if (playerEl.TryGetProperty("photo", out var photoEl) && photoEl.ValueKind == JsonValueKind.String) playerPhoto = photoEl.GetString();
+                    }
+
+                    int goals = 0;
+                    string? teamName = null, teamLogo = null;
+
+                    if (item.TryGetProperty("statistics", out var statsArr) &&
+                        statsArr.ValueKind == JsonValueKind.Array &&
+                        statsArr.GetArrayLength() > 0)
+                    {
+                        var stat = statsArr[0];
+                        if (stat.TryGetProperty("goals", out var goalsEl) &&
+                            goalsEl.TryGetProperty("total", out var totalEl) &&
+                            totalEl.ValueKind == JsonValueKind.Number)
+                            goals = totalEl.GetInt32();
+
+                        if (stat.TryGetProperty("team", out var teamEl))
+                        {
+                            if (teamEl.TryGetProperty("name", out var tnEl) && tnEl.ValueKind == JsonValueKind.String) teamName = tnEl.GetString();
+                            if (teamEl.TryGetProperty("logo", out var tlEl) && tlEl.ValueKind == JsonValueKind.String) teamLogo = tlEl.GetString();
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(playerName))
+                        list.Add(new GoalKingDto { PlayerId = playerId, Name = playerName, Photo = playerPhoto, Team = teamName, TeamLogo = teamLogo, Goals = goals });
+                }
+                catch (Exception exItem)
+                {
+                    _logger.LogWarning(exItem, "Gol krallari item parse hatasi, atlaniyor.");
+                }
             }
 
             _goalKingsCache[cacheKey] = (list, DateTime.UtcNow.Add(GoalKingsCacheDuration));
-            _logger.LogInformation("Gol krallari cekildi: {LeagueKey} — {Count} oyuncu", leagueKey, list.Count);
+            _logger.LogInformation("Gol krallari cekildi: leagueId={LeagueId}, season={Season} — {Count} oyuncu", leagueId, season, list.Count);
             return list;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sport goalKings hatasi: {LeagueKey}", leagueKey);
+            _logger.LogError(ex, "Gol krallari cekilirken hata: leagueId={LeagueId}", leagueId);
             return _goalKingsCache.TryGetValue(cacheKey, out var stale) ? stale.Data : [];
         }
     }

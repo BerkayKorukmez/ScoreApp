@@ -45,21 +45,19 @@ export function useStandings(selectedSportRef, leagueInfoRef) {
       return // Tenis için puan tablosu yok
     }
 
-    // Futbol: CollectAPI key varsa CollectAPI, yoksa leagueId ile API-Sports (UCL, UEL vb.)
+    // Futbol: leagueId ile API-Sports
     if (sport === 'football') {
-      const collectApiKey = leagueInfo.collectApiKey ?? null
-      const leagueId      = leagueInfo.leagueId ?? FOOTBALL_LEAGUE_IDS[leagueInfo.name] ?? null
+      const leagueId = leagueInfo.leagueId ?? FOOTBALL_LEAGUE_IDS[leagueInfo.name] ?? null
 
-      if (!collectApiKey && !leagueId) {
-        console.warn('[useStandings] Bu lig için ne CollectAPI key ne leagueId var:', leagueInfo.name)
+      if (!leagueId) {
+        console.warn('[useStandings] Bu lig için leagueId bulunamadı:', leagueInfo.name)
         return
       }
 
-      const source = collectApiKey ? `CollectAPI (key=${collectApiKey})` : `API-Sports (id=${leagueId})`
-      console.log(`[useStandings] Futbol puan durumu yükleniyor: ${leagueInfo.name} → ${source}`)
+      console.log(`[useStandings] Futbol puan durumu yükleniyor: ${leagueInfo.name} (id=${leagueId})`)
       isStandingsLoading.value = true
       try {
-        leagueStandings.value = await fetchFootballStandings(collectApiKey, leagueId)
+        leagueStandings.value = await fetchFootballStandings(leagueId)
       } catch (error) {
         console.error('[useStandings] Puan durumu yüklenemedi:', error.response?.status, error.message)
         leagueStandings.value = []

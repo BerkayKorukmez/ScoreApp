@@ -21,7 +21,11 @@
     </div>
 
     <!-- Ev sahibi -->
-    <div class="team home-team">
+    <div
+      class="team home-team"
+      :class="{ 'team-clickable': !!match.homeTeamId }"
+      @click.stop="match.homeTeamId && goToTeam(match.homeTeamId)"
+    >
       <span class="team-name">{{ match.homeTeam }}</span>
       <img
         v-if="match.homeTeamLogo"
@@ -42,7 +46,11 @@
     </div>
 
     <!-- Deplasman -->
-    <div class="team away-team">
+    <div
+      class="team away-team"
+      :class="{ 'team-clickable': !!match.awayTeamId }"
+      @click.stop="match.awayTeamId && goToTeam(match.awayTeamId)"
+    >
       <img
         v-if="match.awayTeamLogo"
         :src="match.awayTeamLogo"
@@ -103,6 +111,11 @@ const props = defineProps({
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+const goToTeam = (teamId) => {
+  const prefix = authStore.isAuthenticated ? '/user' : ''
+  router.push(`${prefix}/team/${teamId}`)
+}
 
 const aiOpen = ref(false)
 const aiLoading = ref(false)
@@ -248,6 +261,14 @@ const dateTime = computed(() => {
 }
 .home-team { justify-content: flex-end; }
 .away-team { justify-content: flex-start; }
+.team-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
+.team-clickable:hover { background: #30363d; }
 .team-logo {
   width: 24px;
   height: 24px;

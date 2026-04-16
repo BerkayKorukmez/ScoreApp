@@ -204,24 +204,34 @@ public class MatchController : ControllerBase
 
     // ── Sabit route'lar {id}'den ÖNCE olmalı ─────────────────────────────────────
     [HttpGet("goalKings")]
-    public async Task<IActionResult> GetGoalKings([FromQuery] string? league)
+    public async Task<IActionResult> GetGoalKings([FromQuery] int? leagueId, [FromQuery] int? season)
     {
-        if (string.IsNullOrWhiteSpace(league))
-            return BadRequest("league parametresi zorunludur.");
+        if (leagueId is null or <= 0)
+            return BadRequest("leagueId parametresi zorunludur.");
 
-        var list = await _externalApiService.FetchGoalKingsFromSportApiAsync(league.Trim());
+        var now            = DateTime.UtcNow;
+        var computed       = now.Month >= 8 ? now.Year : now.Year - 1;
+        var resolvedSeason = season ?? computed;
+
+        var list = await _externalApiService.FetchGoalKingsAsync(leagueId.Value, resolvedSeason);
         return Ok(list);
     }
 
     [HttpGet("results/football")]
     public async Task<IActionResult> GetFootballResults(
-        [FromQuery] string? collectApiKey,
-        [FromQuery] string? date)
+        [FromQuery] int?  leagueId,
+        [FromQuery] int?  season,
+        [FromQuery] int?  last)
     {
-        if (string.IsNullOrWhiteSpace(collectApiKey))
-            return BadRequest("collectApiKey parametresi zorunludur.");
+        if (leagueId is null or <= 0)
+            return BadRequest("leagueId parametresi zorunludur.");
 
-        var results = await _externalApiService.FetchFootballResultsFromCollectApiAsync(collectApiKey, date);
+        var now            = DateTime.UtcNow;
+        var computed       = now.Month >= 8 ? now.Year : now.Year - 1;
+        var resolvedSeason = season ?? computed;
+        var resolvedLast   = last is > 0 ? last.Value : 15;
+
+        var results = await _externalApiService.FetchFootballRecentResultsAsync(leagueId.Value, resolvedSeason, resolvedLast);
         return Ok(results);
     }
 

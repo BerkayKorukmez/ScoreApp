@@ -18,12 +18,11 @@ public interface IExternalApiService
     Task<List<Dictionary<string, object>>?> FetchFootballMatchEventsAsync(int fixtureId);
     Task<FootballMatchLineupsDto?> FetchFootballMatchLineupsAsync(int fixtureId, string homeTeamName, string awayTeamName);
 
-    // ── Son hafta maç sonuçları (CollectAPI) ──────────────────────────────────────
-    Task<List<MatchResultDto>> FetchFootballResultsFromCollectApiAsync(string leagueKey, string? date = null);
+    // ── Lig bazlı son maç sonuçları (API-Sports) ─────────────────────────────────
+    Task<List<MatchResultDto>> FetchFootballRecentResultsAsync(int leagueId, int season, int last = 15);
 
     // ── Puan durumu ───────────────────────────────────────────────────────────────
     Task<List<LeagueStandingDto>> FetchFootballStandingsAsync(int leagueId, int season);
-    Task<List<LeagueStandingDto>> FetchFootballStandingsFromCollectApiAsync(string leagueKey);
     Task<List<LeagueStandingDto>> FetchBasketballStandingsAsync(int leagueId, string season);
     Task<List<LeagueStandingDto>> FetchVolleyballStandingsAsync(int leagueId, int season);
 
@@ -50,8 +49,12 @@ public interface IExternalApiService
     Task<List<Match>> FetchBasketballFixturesByTeamAsync(int teamId, string season);
     Task<List<Match>> FetchVolleyballFixturesByTeamAsync(int teamId, int season);
 
-    // ── Gol krallığı (CollectAPI sport) ──────────────────────────────────────────
-    Task<List<GoalKingDto>> FetchGoalKingsFromSportApiAsync(string leagueKey);
+    // ── Gol krallığı (API-Sports topscorers) ─────────────────────────────────────
+    Task<List<GoalKingDto>> FetchGoalKingsAsync(int leagueId, int season);
+
+    // ── Takım & Oyuncu profilleri ─────────────────────────────────────────────────
+    Task<TeamProfileDto?> FetchTeamProfileAsync(int teamId);
+    Task<PlayerProfileDto?> FetchPlayerProfileAsync(int playerId, int season);
 
     // ── Fikstür: lige göre ───────────────────────────────────────────────────────
     Task<List<Match>> FetchFootballFixturesByLeagueAsync(int leagueId, int season);

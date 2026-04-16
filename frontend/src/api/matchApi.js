@@ -26,6 +26,7 @@ export const fetchMatches = async (sportType, league = null) => {
  */
 const mapStandingsDto = (data) =>
   (Array.isArray(data) ? data : []).map(item => ({
+    teamId:       item.teamId   || null,
     name:         item.teamName,
     logo:         item.teamLogo || null,
     played:       item.played,
@@ -39,21 +40,16 @@ const mapStandingsDto = (data) =>
   }))
 
 /**
- * Futbol lig puan durumu.
- * collectApiKey varsa CollectAPI (yerli ligler), yoksa leagueId ile API-Sports (turnuvalar).
- * @param {string|null} collectApiKey - CollectAPI lig key'i (ör: 'super-lig')
- * @param {number|null} leagueId     - API-Sports lig ID'si (ör: 2 = UCL)
+ * Futbol lig puan durumu (API-Sports).
+ * @param {number} leagueId - API-Sports lig ID'si (ör: 203 = Süper Lig, 39 = Premier League)
+ * @param {number|null} season - Sezon yılı (ör: 2024); verilmezse backend otomatik belirler
  */
-export const fetchFootballStandings = async (collectApiKey, leagueId = null) => {
-  if (collectApiKey) {
-    const response = await http.get('/match/standings/football', { params: { collectApiKey } })
-    return mapStandingsDto(response.data)
-  }
-  if (leagueId) {
-    const response = await http.get('/match/standings/football', { params: { leagueId } })
-    return mapStandingsDto(response.data)
-  }
-  return []
+export const fetchFootballStandings = async (leagueId, season = null) => {
+  if (!leagueId) return []
+  const params = { leagueId }
+  if (season) params.season = season
+  const response = await http.get('/match/standings/football', { params })
+  return mapStandingsDto(response.data)
 }
 
 /**
@@ -104,30 +100,39 @@ export const fetchMatchHistory = async (sportType, date) => {
 }
 
 /**
- * CollectAPI üzerinden lig bazlı son hafta maç sonuçlarını çeker.
- * @param {string} collectApiKey - CollectAPI lig key'i (ör: 'super-lig')
+ * API-Sports üzerinden lig bazlı son maç sonuçlarını çeker.
+ * @param {number} leagueId - API-Sports lig ID'si (ör: 203 = Süper Lig)
+ * @param {number|null} season - Sezon yılı; verilmezse backend otomatik belirler
+ * @param {number} last - Kaç son maç (varsayılan 15)
  * @returns {Array} [{ homeTeam, awayTeam, homeScore, awayScore, date, isPlayed }]
  */
-export const fetchFootballResults = async (collectApiKey, date = null) => {
-  if (!collectApiKey) return []
-  const params = { collectApiKey }
-  if (date) params.date = date
+export const fetchFootballResults = async (leagueId, season = null, last = 15) => {
+  if (!leagueId) return []
+  const params = { leagueId, last }
+  if (season) params.season = season
   const response = await http.get('/match/results/football', { params })
   return Array.isArray(response.data) ? response.data : []
 }
 
 /**
- * Gol krallığı (CollectAPI sport).
- * @param {string} league - Lig key (ör: 'super-lig')
+ * Gol krallığı (API-Sports topscorers).
+ * @param {number} leagueId - API-Sports lig ID'si (ör: 203 = Süper Lig)
+ * @param {number|null} season - Sezon yılı; verilmezse backend otomatik belirler
  * @returns {Array} [{ name, goals }]
  */
-export const fetchGoalKings = async (league) => {
-  if (!league) return []
-  const response = await http.get('/match/goalKings', { params: { league } })
+export const fetchGoalKings = async (leagueId, season = null) => {
+  if (!leagueId) return []
+  const params = { leagueId }
+  if (season) params.season = season
+  const response = await http.get('/match/goalKings', { params })
   const data = Array.isArray(response.data) ? response.data : []
   return data.map((item) => ({
-    name: item.name ?? '',
-    goals: typeof item.goals === 'number' ? item.goals : parseInt(item.goals, 10) || 0
+    playerId: item.playerId ?? null,
+    name:     item.name    ?? '',
+    photo:    item.photo   ?? null,
+    team:     item.team    ?? null,
+    teamLogo: item.teamLogo ?? null,
+    goals:    typeof item.goals === 'number' ? item.goals : parseInt(item.goals, 10) || 0
   }))
 }
 

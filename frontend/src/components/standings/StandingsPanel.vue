@@ -138,7 +138,11 @@
           >
             <td class="col-pos">{{ index + 1 }}</td>
             <td class="col-team">
-              <div class="standings-team-cell">
+              <div
+                class="standings-team-cell"
+                :class="{ 'team-clickable': !!team.teamId }"
+                @click="team.teamId && goToTeam(team.teamId)"
+              >
                 <img
                   v-if="team.logo"
                   :src="team.logo"
@@ -176,8 +180,18 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/auth'
 import LoadingSpinner from '../common/LoadingSpinner.vue'
 import { POPULAR_STANDINGS_LEAGUES } from '../../constants/sports'
+
+const router    = useRouter()
+const authStore = useAuthStore()
+
+const goToTeam = (teamId) => {
+  const prefix = authStore.isAuthenticated ? '/user' : ''
+  router.push(`${prefix}/team/${teamId}`)
+}
 
 const props = defineProps({
   leagueInfo: { type: Object,  default: null },
@@ -506,6 +520,17 @@ const rowClass = (index) => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+.team-clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.13s;
+}
+.team-clickable:hover {
+  background: #21262d;
+}
+.team-clickable:hover .standings-team-name {
+  color: #58a6ff;
 }
 
 .standings-team-logo {

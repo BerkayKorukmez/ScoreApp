@@ -32,6 +32,18 @@ const routes = [
         name: 'MatchDetail',
         component: () => import('../views/MatchDetail.vue'),
         props: true
+      },
+      {
+        path: 'team/:id',
+        name: 'TeamProfile',
+        component: () => import('../views/TeamProfile.vue'),
+        props: true
+      },
+      {
+        path: 'player/:id',
+        name: 'PlayerProfile',
+        component: () => import('../views/PlayerProfile.vue'),
+        props: true
       }
     ]
   },
@@ -66,6 +78,18 @@ const routes = [
         path: 'match/:id',
         name: 'UserMatchDetail',
         component: () => import('../views/MatchDetail.vue'),
+        props: true
+      },
+      {
+        path: 'team/:id',
+        name: 'UserTeamProfile',
+        component: () => import('../views/TeamProfile.vue'),
+        props: true
+      },
+      {
+        path: 'player/:id',
+        name: 'UserPlayerProfile',
+        component: () => import('../views/PlayerProfile.vue'),
         props: true
       }
     ]

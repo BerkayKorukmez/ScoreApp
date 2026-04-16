@@ -54,6 +54,13 @@ public class Match
     [MaxLength(500)]
     public string? AwayTeamLogo { get; set; }
 
+    // Harici API takım ID'leri (DB'ye kaydedilmez, profil sayfaları için kullanılır)
+    [NotMapped]
+    public int? HomeTeamId { get; set; }
+
+    [NotMapped]
+    public int? AwayTeamId { get; set; }
+
     /// <summary>
     /// Admin tarafından gizlenen maçlar kullanıcılara gösterilmez.
     /// </summary>

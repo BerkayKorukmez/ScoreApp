@@ -8,6 +8,9 @@ backend/**/bin/
 backend/**/obj/
 backend/**/.vs/
 
+# Visual Studio local cache
+.vs/
+
 # Gizli değişkenler — ASLA Git'e gönderme!
 .env
 # .env.example gönderilir (şablon, gerçek değer içermez)

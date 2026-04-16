@@ -50,3 +50,20 @@ export const toggleUserAdmin = async (userId) => {
   const response = await axios.post(`/admin/users/${userId}/toggle-admin`)
   return response.data
 }
+
+// ─── Sohbet yasak yönetimi ────────────────────────────────────────────────────
+
+export const fetchChatBans = async () => {
+  const response = await axios.get('/admin/chatbans')
+  return response.data
+}
+
+export const banUserFromChat = async (userId) => {
+  const response = await axios.post(`/admin/chatban/${userId}`)
+  return response.data
+}
+
+export const unbanUserFromChat = async (userId) => {
+  const response = await axios.delete(`/admin/chatban/${userId}`)
+  return response.data
+}

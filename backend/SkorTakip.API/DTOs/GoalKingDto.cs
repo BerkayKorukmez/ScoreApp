@@ -1,10 +1,11 @@
 namespace SkorTakip.API.DTOs;
 
-/// <summary>
-/// CollectAPI sport/goalKings yanıtı.
-/// </summary>
 public class GoalKingDto
 {
-    public string Name  { get; set; } = string.Empty;
-    public int    Goals { get; set; }
+    public int    PlayerId { get; set; }
+    public string Name     { get; set; } = string.Empty;
+    public string? Photo   { get; set; }
+    public string? Team    { get; set; }
+    public string? TeamLogo { get; set; }
+    public int    Goals    { get; set; }
 }

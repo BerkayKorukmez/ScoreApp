@@ -190,7 +190,11 @@
           <!-- Takımlar ve skor -->
           <div class="match-teams-col">
             <div class="team-row">
-              <div class="team-info">
+              <div
+                class="team-info"
+                :class="{ 'team-clickable': !!match.homeTeamId }"
+                @click.stop="match.homeTeamId && goToTeam(match.homeTeamId)"
+              >
                 <img
                   v-if="match.homeTeamLogo"
                   :src="match.homeTeamLogo"
@@ -207,7 +211,11 @@
               <span class="team-score">{{ match.homeScore }}</span>
             </div>
             <div class="team-row">
-              <div class="team-info">
+              <div
+                class="team-info"
+                :class="{ 'team-clickable': !!match.awayTeamId }"
+                @click.stop="match.awayTeamId && goToTeam(match.awayTeamId)"
+              >
                 <img
                   v-if="match.awayTeamLogo"
                   :src="match.awayTeamLogo"
@@ -245,7 +253,7 @@
         <div class="filter-group">
           <label class="filter-label">Lig Seç</label>
           <select v-model="selectedResultLeague" class="filter-select league-select" @change="loadLeagueResults">
-            <option v-for="l in collectApiLeagues" :key="l.key" :value="l">
+            <option v-for="l in footballLeagues" :key="l.key" :value="l">
               {{ l.displayName || l.name }}
             </option>
           </select>
@@ -446,6 +454,11 @@ const goToMatchDetail = (matchId) => {
   router.push(`${prefix}/match/${matchId}`)
 }
 
+const goToTeam = (teamId) => {
+  const prefix = authStore.isAuthenticated ? '/user' : ''
+  router.push(`${prefix}/team/${teamId}`)
+}
+
 const getStatusClass = (status) => {
   switch (status) {
     case 3: return 'finished'
@@ -636,10 +649,10 @@ onMounted(() => {
 })
 
 /* =============================================
-   LİG SONUÇLARI (CollectAPI)
+   LİG SONUÇLARI (API-Sports)
    ============================================= */
-const collectApiLeagues = computed(() =>
-  (POPULAR_STANDINGS_LEAGUES.football ?? []).filter(l => !!l.collectApiKey)
+const footballLeagues = computed(() =>
+  (POPULAR_STANDINGS_LEAGUES.football ?? []).filter(l => !!l.leagueId)
 )
 
 const selectedResultLeague = ref(null)
@@ -648,20 +661,20 @@ const isResultsLoading     = ref(false)
 
 // Tab açılınca ilk ligi otomatik seç
 watch(activeTab, (tab) => {
-  if (tab === 'league' && !selectedResultLeague.value && collectApiLeagues.value.length) {
-    selectedResultLeague.value = collectApiLeagues.value[0]
+  if (tab === 'league' && !selectedResultLeague.value && footballLeagues.value.length) {
+    selectedResultLeague.value = footballLeagues.value[0]
     loadLeagueResults()
   }
 })
 
 const loadLeagueResults = async () => {
   const league = selectedResultLeague.value
-  if (!league?.collectApiKey) return
+  if (!league?.leagueId) return
 
   isResultsLoading.value = true
   leagueResults.value    = []
   try {
-    leagueResults.value = await fetchFootballResults(league.collectApiKey)
+    leagueResults.value = await fetchFootballResults(league.leagueId)
   } catch (err) {
     console.error('Lig sonuçları yüklenemedi:', err)
   } finally {
@@ -1167,6 +1180,14 @@ const formatResultDate = (dateStr) => {
   min-width: 0;
   flex: 1;
 }
+.team-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.1rem 0.2rem;
+  margin: -0.1rem -0.2rem;
+  transition: background 0.15s;
+}
+.team-clickable:hover { background: #30363d; }
 
 .team-logo-sm {
   width: 18px;

@@ -299,6 +299,85 @@ public class AdminController : ControllerBase
             return Ok(new { id, isAdmin = true, message = "Admin rolü verildi." });
         }
     }
+
+    // ════════════════════════════════════════════════════════════
+    //  SOHBET YASAK YÖNETİMİ
+    // ════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Sohbetten yasaklanan tüm kullanıcıları listeler.
+    /// </summary>
+    [HttpGet("chatbans")]
+    public async Task<IActionResult> GetChatBans()
+    {
+        var bans = await _context.ChatBans
+            .Include(b => b.User)
+            .Include(b => b.BannedByAdmin)
+            .OrderByDescending(b => b.CreatedAt)
+            .Select(b => new
+            {
+                id              = b.Id,
+                userId          = b.UserId,
+                userName        = b.User.UserName,
+                bannedByAdminId = b.BannedByAdminId,
+                bannedByAdmin   = b.BannedByAdmin.UserName,
+                createdAt       = b.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(bans);
+    }
+
+    /// <summary>
+    /// Kullanıcıyı sohbetten yasaklar. Zaten yasaklıysa 409 döner.
+    /// </summary>
+    [HttpPost("chatban/{userId}")]
+    public async Task<IActionResult> BanUserFromChat(string userId)
+    {
+        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (adminId == null) return Unauthorized();
+
+        if (adminId == userId)
+            return BadRequest(new { message = "Kendinizi yasaklayamazsınız." });
+
+        var targetUser = await _userManager.FindByIdAsync(userId);
+        if (targetUser == null) return NotFound(new { message = "Kullanıcı bulunamadı." });
+
+        var alreadyBanned = await _context.ChatBans.AnyAsync(b => b.UserId == userId);
+        if (alreadyBanned)
+            return Conflict(new { message = "Kullanıcı zaten yasaklı." });
+
+        var ban = new ChatBan
+        {
+            UserId          = userId,
+            BannedByAdminId = adminId,
+            CreatedAt       = DateTime.UtcNow
+        };
+        _context.ChatBans.Add(ban);
+        await _context.SaveChangesAsync();
+
+        // Kullanıcının açık bağlantısına anlık bildirim gönder
+        await _hubContext.Clients.User(userId).SendAsync("ChatBanned");
+
+        return Ok(new { message = $"{targetUser.UserName} sohbetten yasaklandı." });
+    }
+
+    /// <summary>
+    /// Kullanıcının sohbet yasağını kaldırır.
+    /// </summary>
+    [HttpDelete("chatban/{userId}")]
+    public async Task<IActionResult> UnbanUserFromChat(string userId)
+    {
+        var ban = await _context.ChatBans.FirstOrDefaultAsync(b => b.UserId == userId);
+        if (ban == null) return NotFound(new { message = "Bu kullanıcıya ait yasak bulunamadı." });
+
+        _context.ChatBans.Remove(ban);
+        await _context.SaveChangesAsync();
+
+        await _hubContext.Clients.User(userId).SendAsync("ChatUnbanned");
+
+        return Ok(new { message = "Yasak kaldırıldı." });
+    }
 }
 
 public record ResetPasswordRequest(string NewPassword);

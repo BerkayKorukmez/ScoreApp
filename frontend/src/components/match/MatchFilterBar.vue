@@ -1,6 +1,19 @@
 <template>
   <div class="filter-bar">
-    <!-- Filtre sekmeleri -->
+    <div class="search-row">
+      <input
+        type="search"
+        class="match-search-input"
+        :value="searchQuery"
+        placeholder="Takım veya lig ara…"
+        autocomplete="off"
+        :spellcheck="false"
+        aria-label="Maç ara"
+        @input="$emit('update:searchQuery', $event.target.value)"
+      />
+    </div>
+
+    <div class="filter-row">
     <div class="filter-tabs">
       <button
         :class="['tab-btn', { active: activeFilter === 'live' }]"
@@ -30,8 +43,6 @@
         ⭐ Favoriler
       </button>
     </div>
-
-    <!-- Lig seçim dropdown'u -->
     <div class="league-selector">
       <select
         :value="selectedLeagueKey"
@@ -54,6 +65,7 @@
         </optgroup>
       </select>
     </div>
+    </div>
   </div>
 </template>
 
@@ -63,17 +75,18 @@ defineProps({
   selectedLeagueKey: { type: String,  default: null },
   leaguesByCountry:  { type: Array,   default: () => [] },
   liveMatchCount:    { type: Number,  default: 0 },
-  isAuthenticated:   { type: Boolean, default: false }
+  isAuthenticated:   { type: Boolean, default: false },
+  searchQuery:       { type: String,  default: '' }
 })
 
-defineEmits(['update:activeFilter', 'update:selectedLeagueKey'])
+defineEmits(['update:activeFilter', 'update:selectedLeagueKey', 'update:searchQuery'])
 </script>
 
 <style scoped>
 .filter-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.65rem;
   padding: 0.75rem 1.25rem;
   background: #161b22;
   border-bottom: 1px solid #21262d;
@@ -82,7 +95,37 @@ defineEmits(['update:activeFilter', 'update:selectedLeagueKey'])
   z-index: 10;
 }
 
-.filter-tabs { display: flex; gap: 0.25rem; }
+.search-row { width: 100%; }
+
+.match-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0d1117;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  padding: 0.45rem 0.75rem 0.45rem 2rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.65rem 50%;
+  background-size: 14px 14px;
+}
+
+.match-search-input::placeholder { color: #484f58; }
+.match-search-input:focus { border-color: #58a6ff; }
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filter-tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; }
 
 .tab-btn {
   display: flex;

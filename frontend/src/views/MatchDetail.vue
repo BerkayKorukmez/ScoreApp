@@ -28,7 +28,11 @@
         <!-- Takımlar ve skor -->
         <div class="scoreboard">
           <!-- Ev sahibi takım -->
-          <div class="team-block">
+          <div
+            class="team-block"
+            :class="{ 'team-clickable': !!match.homeTeamId }"
+            @click="match.homeTeamId && goToTeam(match.homeTeamId)"
+          >
             <div class="team-emblem" :class="{ 'has-logo': match.homeTeamLogo }">
               <img
                 v-if="match.homeTeamLogo"
@@ -71,7 +75,11 @@
           </div>
 
           <!-- Deplasman takımı -->
-          <div class="team-block">
+          <div
+            class="team-block"
+            :class="{ 'team-clickable': !!match.awayTeamId }"
+            @click="match.awayTeamId && goToTeam(match.awayTeamId)"
+          >
             <div class="team-emblem" :class="{ 'has-logo': match.awayTeamLogo }">
               <img
                 v-if="match.awayTeamLogo"
@@ -117,6 +125,12 @@
               @click="activeTab = 'info'"
             >
               ℹ️ Bilgiler
+            </button>
+            <button
+              :class="['tab-item', { active: activeTab === 'chat' }]"
+              @click="activeTab = 'chat'"
+            >
+              💬 Sohbet
             </button>
           </div>
 
@@ -363,6 +377,18 @@
               </div>
             </div>
           </div>
+
+          <!-- SOHBET SEKMESİ -->
+          <div v-if="activeTab === 'chat'" class="tab-content tab-content--chat">
+            <MatchChatPanel
+              :match-id="match.id"
+              :is-authenticated="authStore.isAuthenticated"
+              :is-admin="authStore.isAdmin"
+              :current-user-id="authStore.user?.id ?? null"
+              :current-user-name="authStore.user?.userName ?? 'Ben'"
+              :token="authStore.token"
+            />
+          </div>
         </div>
       </div>
 
@@ -378,12 +404,17 @@ import { useWebSocket } from '../composables/useWebSocket'
 import { useFormatters } from '../composables/useFormatters'
 import { SPORT_LABELS } from '../constants/sports'
 import { useAuthStore } from '../stores/auth'
+import MatchChatPanel from '../components/match/MatchChatPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
 const goHome = () => router.push(authStore.isAuthenticated ? '/user' : '/')
+const goToTeam = (teamId) => {
+  const prefix = authStore.isAuthenticated ? '/user' : ''
+  router.push(`${prefix}/team/${teamId}`)
+}
 const { formatDateTime } = useFormatters()
 const { connect } = useWebSocket()
 
@@ -761,6 +792,14 @@ onMounted(async () => {
   flex: 1;
   min-width: 0;
 }
+.team-block.team-clickable {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0.4rem;
+  margin: -0.4rem;
+  transition: background 0.15s;
+}
+.team-block.team-clickable:hover { background: #21262d; }
 
 .team-emblem {
   width: 72px;
@@ -1349,5 +1388,12 @@ onMounted(async () => {
   .team-emblem { width: 48px; height: 48px; }
   .emblem-img { width: 34px; height: 34px; }
   .emblem-letter { font-size: 1.2rem; }
+}
+
+/* =============================================
+   SOHBET SEKMESİ
+   ============================================= */
+.tab-content--chat {
+  padding: 0;
 }
 </style>

@@ -15,6 +15,8 @@ namespace SkorTakip.API.Data;
         public DbSet<Match> Matches { get; set; }
         public DbSet<FavoriteMatch> FavoriteMatches { get; set; }
         public DbSet<AiChatMessage> AiChatMessages { get; set; }
+        public DbSet<MatchComment> MatchComments { get; set; }
+        public DbSet<ChatBan> ChatBans { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -58,6 +60,33 @@ namespace SkorTakip.API.Data;
                       .OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.CreatedAt);
+            });
+
+            builder.Entity<MatchComment>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.MatchId).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Content).IsRequired().HasMaxLength(500);
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(e => e.MatchId);
+                entity.HasIndex(e => e.CreatedAt);
+            });
+
+            builder.Entity<ChatBan>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.BannedByAdmin)
+                      .WithMany()
+                      .HasForeignKey(e => e.BannedByAdminId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(e => e.UserId).IsUnique();
             });
         }
     }

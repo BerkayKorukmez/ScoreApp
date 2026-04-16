@@ -777,10 +777,12 @@ public partial class ExternalApiService
                     var points       = item.GetProperty("points").GetInt32();
                     var rank         = item.GetProperty("rank").GetInt32();
                     var teamLogo     = team.TryGetProperty("logo", out var logoEl) ? logoEl.GetString() : null;
+                    var teamId       = team.TryGetProperty("id", out var tidEl) && tidEl.ValueKind == JsonValueKind.Number ? tidEl.GetInt32() : (int?)null;
 
                     result.Add(new LeagueStandingDto
                     {
                         Rank           = rank,
+                        TeamId         = teamId,
                         TeamName       = team.GetProperty("name").GetString() ?? string.Empty,
                         TeamLogo       = teamLogo,
                         Played         = played,
@@ -1090,6 +1092,8 @@ public partial class ExternalApiService
                     ExternalFixtureId = fixtureId,
                     HomeTeamLogo     = ResolveFootballTeamLogoUrl(homeTeamObj),
                     AwayTeamLogo     = ResolveFootballTeamLogoUrl(awayTeamObj),
+                    HomeTeamId       = homeTeamObj.TryGetProperty("id", out var htIdEl) && htIdEl.ValueKind == JsonValueKind.Number ? htIdEl.GetInt32() : null,
+                    AwayTeamId       = awayTeamObj.TryGetProperty("id", out var atIdEl) && atIdEl.ValueKind == JsonValueKind.Number ? atIdEl.GetInt32() : null,
                     StadiumName      = stadiumName
                 });
             }
@@ -1102,119 +1106,77 @@ public partial class ExternalApiService
         return matches;
     }
 
-    // ── CollectAPI: Son hafta maç sonuçları (opsiyonel tarih: yyyy-MM-dd) ─────────
-    public async Task<List<MatchResultDto>> FetchFootballResultsFromCollectApiAsync(string leagueKey, string? date = null)
+    // ── API-Sports: Lig bazlı son N maçın sonuçları ──────────────────────────────
+    public async Task<List<MatchResultDto>> FetchFootballRecentResultsAsync(int leagueId, int season, int last = 15)
     {
-        var dateTag = string.IsNullOrWhiteSpace(date) ? "latest" : date.Trim();
-        var cacheKey = $"collectapi_results_{leagueKey}_{dateTag}";
+        var cacheKey = $"apisports_results_{leagueId}_{season}_{last}";
         if (_resultsCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
         {
-            _logger.LogInformation("CollectAPI sonuçlar CACHE'ten: {LeagueKey} ({Count} maç)", leagueKey, cached.Data.Count);
+            _logger.LogInformation("Son maç sonuçları CACHE: leagueId={LeagueId} ({Count} maç)", leagueId, cached.Data.Count);
             return cached.Data;
         }
 
         try
         {
-            var collectApiKey = _configuration["CollectApi:ApiKey"]
-                ?? throw new InvalidOperationException("CollectApi:ApiKey configuration is missing.");
+            _logger.LogInformation("Son maç sonuçları API-Sports'tan çekiliyor: leagueId={LeagueId}, season={Season}, last={Last}", leagueId, season, last);
 
-            var url = $"https://api.collectapi.com/football/results?league={Uri.EscapeDataString(leagueKey)}";
-            if (!string.IsNullOrWhiteSpace(date))
-                url += $"&date={Uri.EscapeDataString(date.Trim())}";
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://v3.football.api-sports.io/fixtures?league={leagueId}&season={season}&last={last}&status=FT-AET-PEN");
+            request.Headers.Add("x-apisports-key", GetApiKey("Football"));
 
-            HttpResponseMessage response;
-            using (var req = new HttpRequestMessage(HttpMethod.Get, url))
-            {
-                req.Headers.Add("authorization", $"apikey {collectApiKey}");
-                response = await _httpClient.SendAsync(req);
-            }
-
-            for (var attempt = 0; attempt < 4 && response.StatusCode == HttpStatusCode.TooManyRequests; attempt++)
-            {
-                var waitMs = 900 * (attempt + 1);
-                _logger.LogWarning("CollectAPI 429. Lig: {LeagueKey}, bekleme {WaitMs}ms", leagueKey, waitMs);
-                await Task.Delay(waitMs);
-                using var retryReq = new HttpRequestMessage(HttpMethod.Get, url);
-                retryReq.Headers.Add("authorization", $"apikey {collectApiKey}");
-                response.Dispose();
-                response = await _httpClient.SendAsync(retryReq);
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("CollectAPI HTTP {Code} — {LeagueKey}", (int)response.StatusCode, leagueKey);
-                response.Dispose();
-                return _resultsCache.TryGetValue(cacheKey, out var staleErr) ? staleErr.Data : [];
-            }
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            response.Dispose();
-            _logger.LogInformation("CollectAPI results yanıtı ({LeagueKey}): {Preview}",
-                leagueKey, content.Length > 200 ? content[..200] : content);
-
             using var doc = JsonDocument.Parse(content);
 
-            // Yanıt doğrudan array veya {success, result:[...]} olabilir
-            JsonElement items;
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            if (!doc.RootElement.TryGetProperty("response", out var responseArray) ||
+                responseArray.ValueKind != JsonValueKind.Array)
             {
-                items = doc.RootElement;
-            }
-            else if (doc.RootElement.TryGetProperty("result", out var resultEl)
-                     && resultEl.ValueKind == JsonValueKind.Array)
-            {
-                items = resultEl;
-            }
-            else
-            {
-                _logger.LogWarning("CollectAPI results: beklenmeyen format. League: {LeagueKey}", leagueKey);
+                _logger.LogWarning("Son maç sonuçları beklenmeyen format: leagueId={LeagueId}", leagueId);
                 return [];
             }
 
             var results = new List<MatchResultDto>();
-            foreach (var item in items.EnumerateArray())
+            foreach (var item in responseArray.EnumerateArray())
             {
-                var home      = item.TryGetProperty("home",  out var h) ? h.GetString() ?? "" : "";
-                var away      = item.TryGetProperty("away",  out var a) ? a.GetString() ?? "" : "";
-                var skorRaw = item.TryGetProperty("skor", out var s) ? s.GetString() ?? "" : "";
-                if (string.IsNullOrEmpty(skorRaw) && item.TryGetProperty("score", out var sc))
-                    skorRaw = sc.GetString() ?? "";
-                var matchDate = item.TryGetProperty("date", out var d) ? d.GetString() ?? "" : "";
-
-                int? homeScore = null, awayScore = null;
-                bool isPlayed  = false;
-
-                if (!string.IsNullOrEmpty(skorRaw) && !skorRaw.Contains("undefined"))
+                try
                 {
-                    var parts = skorRaw.Split('-');
-                    if (parts.Length == 2
-                        && int.TryParse(parts[0].Trim(), out var hs)
-                        && int.TryParse(parts[1].Trim(), out var as_))
+                    var teams = item.GetProperty("teams");
+                    var goals = item.GetProperty("goals");
+                    var fixture = item.GetProperty("fixture");
+
+                    var homeTeam  = teams.GetProperty("home").GetProperty("name").GetString() ?? "";
+                    var awayTeam  = teams.GetProperty("away").GetProperty("name").GetString() ?? "";
+                    var homeScore = goals.GetProperty("home").ValueKind == JsonValueKind.Number ? goals.GetProperty("home").GetInt32() : (int?)null;
+                    var awayScore = goals.GetProperty("away").ValueKind == JsonValueKind.Number ? goals.GetProperty("away").GetInt32() : (int?)null;
+                    var matchDate = fixture.TryGetProperty("date", out var dateEl) ? dateEl.GetString() ?? "" : "";
+
+                    results.Add(new MatchResultDto
                     {
-                        homeScore = hs;
-                        awayScore = as_;
-                        isPlayed  = true;
-                    }
+                        HomeTeam  = homeTeam,
+                        AwayTeam  = awayTeam,
+                        HomeScore = homeScore,
+                        AwayScore = awayScore,
+                        Date      = matchDate,
+                        IsPlayed  = homeScore.HasValue && awayScore.HasValue
+                    });
                 }
-
-                results.Add(new MatchResultDto
+                catch (Exception exItem)
                 {
-                    HomeTeam  = home,
-                    AwayTeam  = away,
-                    HomeScore = homeScore,
-                    AwayScore = awayScore,
-                    Date      = matchDate,
-                    IsPlayed  = isPlayed
-                });
+                    _logger.LogWarning(exItem, "Son maç sonucu item parse hatası, atlaniyor.");
+                }
             }
 
+            // En yeni maç önce
+            results = [.. results.OrderByDescending(r => r.Date)];
             _resultsCache[cacheKey] = (results, DateTime.UtcNow.Add(ResultsCacheDuration));
-            _logger.LogInformation("CollectAPI results başarılı: {LeagueKey}, {Count} maç", leagueKey, results.Count);
+            _logger.LogInformation("Son maç sonuçları çekildi: leagueId={LeagueId}, {Count} maç", leagueId, results.Count);
             return results;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CollectAPI results hatası: {LeagueKey}", leagueKey);
+            _logger.LogError(ex, "Son maç sonuçları hatası: leagueId={LeagueId}", leagueId);
             return _resultsCache.TryGetValue(cacheKey, out var stale) ? stale.Data : [];
         }
     }

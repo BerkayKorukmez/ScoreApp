@@ -23,6 +23,14 @@
           <span class="nav-icon">👤</span>
           <span>Kullanıcılar</span>
         </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeTab === 'chatbans' }"
+          @click="activeTab = 'chatbans'; loadChatBans()"
+        >
+          <span class="nav-icon">🚫</span>
+          <span>Sohbet Yasakları</span>
+        </button>
       </nav>
       <div class="sidebar-footer">
         <RouterLink to="/" class="back-link">← Ana Sayfaya Dön</RouterLink>
@@ -211,6 +219,51 @@
           <button :disabled="userPage >= Math.ceil(userTotal / userPageSize)" @click="userPage++; loadUsers()">Sonraki ›</button>
         </div>
       </section>
+
+      <!-- ═══════════════════════ SOHBET YASAKLARI ═══════════════════════ -->
+      <section v-if="activeTab === 'chatbans'">
+        <div class="section-header">
+          <h1>Sohbet Yasakları</h1>
+          <p class="section-desc">Sohbetten yasaklanmış kullanıcıları yönetin.</p>
+        </div>
+
+        <div v-if="chatBansLoading" class="loading-box">
+          <div class="spinner"></div>
+          <span>Yükleniyor...</span>
+        </div>
+
+        <div v-else-if="chatBans.length === 0" class="empty-state">
+          Yasaklı kullanıcı bulunmuyor.
+        </div>
+
+        <div v-else class="table-wrapper">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Kullanıcı</th>
+                <th>Yasaklayan Admin</th>
+                <th>Tarih</th>
+                <th>İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="ban in chatBans" :key="ban.id">
+                <td>{{ ban.userName }}</td>
+                <td>{{ ban.bannedByAdmin }}</td>
+                <td class="date-cell">{{ formatDate(ban.createdAt) }}</td>
+                <td>
+                  <button
+                    class="action-btn btn-show"
+                    @click="handleUnban(ban)"
+                  >
+                    ✅ Yasağı Kaldır
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
 
     <!-- ─── Şifre Sıfırlama Modal ─── -->
@@ -257,6 +310,27 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- ─── Yasak Kaldırma Onay Modal ─── -->
+    <Teleport to="body">
+      <div v-if="unbanModal.open" class="modal-overlay" @click.self="closeUnbanModal">
+        <div class="modal">
+          <div class="modal-unban-icon">✅</div>
+          <h2>Yasağı Kaldır</h2>
+          <p>
+            <strong>{{ unbanModal.ban?.userName }}</strong> kullanıcısının sohbet yasağını
+            kaldırmak istediğinizden emin misiniz?
+          </p>
+          <div v-if="unbanModal.error" class="modal-error">{{ unbanModal.error }}</div>
+          <div class="modal-actions">
+            <button class="modal-btn btn-cancel" @click="closeUnbanModal">İptal</button>
+            <button class="modal-btn btn-unban-confirm" :disabled="unbanModal.loading" @click="submitUnban">
+              {{ unbanModal.loading ? 'Kaldırılıyor...' : 'Evet, Kaldır' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -270,7 +344,9 @@ import {
   fetchAdminUsers,
   resetUserPassword,
   deleteUser,
-  toggleUserAdmin
+  toggleUserAdmin,
+  fetchChatBans,
+  unbanUserFromChat
 } from '../api/adminApi'
 
 const router     = useRouter()
@@ -363,6 +439,45 @@ const toggleAdmin = async (u) => {
     console.error('Admin rolü değiştirilemedi:', e)
   } finally {
     togglingAdmin.value = null
+  }
+}
+
+// ─── Sohbet Yasakları ─────────────────────────────────────────────────────────
+const chatBans       = ref([])
+const chatBansLoading = ref(false)
+const unbanningUser  = ref(null)
+
+const loadChatBans = async () => {
+  chatBansLoading.value = true
+  try {
+    chatBans.value = await fetchChatBans()
+  } catch (e) {
+    console.error('Sohbet yasakları yüklenemedi:', e)
+  } finally {
+    chatBansLoading.value = false
+  }
+}
+
+const handleUnban = (ban) => {
+  unbanModal.value = { open: true, ban, loading: false, error: '' }
+}
+
+// ─── Unban Modal ──────────────────────────────────────────────────────────────
+const unbanModal = ref({ open: false, ban: null, loading: false, error: '' })
+const closeUnbanModal = () => { if (!unbanModal.value.loading) unbanModal.value.open = false }
+
+const submitUnban = async () => {
+  const ban = unbanModal.value.ban
+  unbanModal.value.loading = true
+  unbanModal.value.error   = ''
+  try {
+    await unbanUserFromChat(ban.userId)
+    chatBans.value = chatBans.value.filter((b) => b.id !== ban.id)
+    unbanModal.value.open = false
+  } catch (e) {
+    unbanModal.value.error = e.response?.data?.message || 'Yasak kaldırılamadı.'
+  } finally {
+    unbanModal.value.loading = false
   }
 }
 
@@ -780,4 +895,9 @@ onMounted(() => {
 .btn-delete-confirm      { background: #3f1f1f; color: #fc8181; }
 .btn-delete-confirm:hover { background: #5a2020; }
 .btn-delete-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.modal-unban-icon { font-size: 2rem; text-align: center; margin-bottom: 10px; }
+.btn-unban-confirm      { background: #1a3a28; color: #68d391; }
+.btn-unban-confirm:hover { background: #1f4a32; }
+.btn-unban-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

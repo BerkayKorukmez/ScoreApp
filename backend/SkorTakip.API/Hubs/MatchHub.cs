@@ -39,4 +39,39 @@ public class MatchHub : Hub
 
         await base.OnConnectedAsync();
     }
+
+    /// <summary>
+    /// Belirtilen maçın sohbet grubuna katılır ve son yorumları gönderir.
+    /// </summary>
+    public async Task JoinMatchChat(string matchId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"match-{matchId}");
+
+        var recentComments = await _context.MatchComments
+            .Where(c => c.MatchId == matchId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(50)
+            .OrderBy(c => c.CreatedAt)
+            .Include(c => c.User)
+            .Select(c => new
+            {
+                id        = c.Id,
+                matchId   = c.MatchId,
+                userId    = c.UserId,
+                userName  = c.User.UserName,
+                content   = c.Content,
+                createdAt = c.CreatedAt
+            })
+            .ToListAsync();
+
+        await Clients.Caller.SendAsync("RecentComments", recentComments);
+    }
+
+    /// <summary>
+    /// Belirtilen maçın sohbet grubundan ayrılır.
+    /// </summary>
+    public async Task LeaveMatchChat(string matchId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"match-{matchId}");
+    }
 }

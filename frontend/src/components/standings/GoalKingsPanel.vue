@@ -6,14 +6,14 @@
     </div>
 
     <div class="gk-league-select">
-      <select v-model="selectedLeagueKey" class="gk-select" @change="loadGoalKings">
-        <option value="">Lig seçin</option>
+      <select v-model="selectedLeagueId" class="gk-select" @change="loadGoalKings">
+        <option :value="null">Lig seçin</option>
         <template v-for="group in leaguesByCountry" :key="group.country">
-          <option disabled value="">— {{ group.country }} —</option>
+          <option disabled :value="null">— {{ group.country }} —</option>
           <option
             v-for="league in group.leagues"
             :key="league.key"
-            :value="league.collectApiKey"
+            :value="league.leagueId"
           >
             {{ league.displayName || league.name }}
           </option>
@@ -31,13 +31,30 @@
     <div v-else class="gk-list">
       <div
         v-for="(player, index) in goalKings"
-        :key="player.name"
+        :key="player.playerId || player.name"
         class="gk-row"
-        :class="{ 'gk-row--top3': index < 3 }"
+        :class="{ 'gk-row--top3': index < 3, 'gk-row--clickable': !!player.playerId }"
+        @click="player.playerId && goToPlayer(player.playerId)"
       >
         <span class="gk-rank">{{ index + 1 }}</span>
-        <span class="gk-name">{{ player.name }}</span>
-        <span class="gk-goals">{{ player.goals }}</span>
+        <div class="gk-player">
+          <img
+            v-if="player.photo"
+            :src="player.photo"
+            :alt="player.name"
+            class="gk-photo"
+            @error="$event.target.style.display='none'"
+          />
+          <div v-else class="gk-photo-placeholder">{{ player.name?.charAt(0) }}</div>
+          <div class="gk-player-info">
+            <span class="gk-name">{{ player.name }}</span>
+            <span v-if="player.team" class="gk-team">
+              <img v-if="player.teamLogo" :src="player.teamLogo" class="gk-team-logo" @error="$event.target.style.display='none'" />
+              {{ player.team }}
+            </span>
+          </div>
+        </div>
+        <span class="gk-goals">⚽ {{ player.goals }}</span>
       </div>
     </div>
   </aside>
@@ -45,11 +62,22 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/auth'
 import { fetchGoalKings } from '../../api/matchApi'
 import { POPULAR_STANDINGS_LEAGUES } from '../../constants/sports'
 import LoadingSpinner from '../common/LoadingSpinner.vue'
 
-const selectedLeagueKey = ref('super-lig')
+const router    = useRouter()
+const authStore = useAuthStore()
+
+const goToPlayer = (playerId) => {
+  const prefix = authStore.isAuthenticated ? '/user' : ''
+  router.push(`${prefix}/player/${playerId}`)
+}
+
+// Süper Lig varsayılan (leagueId: 203)
+const selectedLeagueId = ref(203)
 const goalKings = ref([])
 const isLoading = ref(false)
 
@@ -59,7 +87,7 @@ const leaguesByCountry = computed(() => {
   const byCountry = {}
 
   list
-    .filter((l) => l.collectApiKey)
+    .filter((l) => l.leagueId)
     .forEach((l) => {
       const key = `${l.country}::${l.name}`
       if (!map.has(key)) {
@@ -83,8 +111,8 @@ const leaguesByCountry = computed(() => {
 })
 
 const loadGoalKings = async () => {
-  const key = selectedLeagueKey.value
-  if (!key) {
+  const id = selectedLeagueId.value
+  if (!id) {
     goalKings.value = []
     return
   }
@@ -92,7 +120,7 @@ const loadGoalKings = async () => {
   isLoading.value = true
   goalKings.value = []
   try {
-    goalKings.value = await fetchGoalKings(key)
+    goalKings.value = await fetchGoalKings(id)
   } catch (err) {
     console.error('Gol kralları yüklenemedi:', err)
   } finally {
@@ -100,7 +128,7 @@ const loadGoalKings = async () => {
   }
 }
 
-watch(selectedLeagueKey, (v) => {
+watch(selectedLeagueId, (v) => {
   if (v) loadGoalKings()
 }, { immediate: true })
 </script>
@@ -161,42 +189,89 @@ watch(selectedLeagueKey, (v) => {
 .gk-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1.25rem;
+  gap: 0.65rem;
+  padding: 0.55rem 1rem;
   border-bottom: 1px solid #21262d40;
   font-size: 0.85rem;
+  transition: background 0.13s;
 }
-
-.gk-row:hover {
-  background: #161b22;
-}
-
-.gk-row--top3 {
-  font-weight: 600;
-  color: #e6edf3;
-}
+.gk-row:hover { background: #161b22; }
+.gk-row--clickable { cursor: pointer; }
+.gk-row--clickable:hover .gk-name { color: #58a6ff; }
+.gk-row--top3 { font-weight: 600; color: #e6edf3; }
 
 .gk-rank {
-  width: 1.5rem;
+  width: 1.4rem;
   flex-shrink: 0;
   font-weight: 700;
   color: #8b949e;
   text-align: right;
+  font-size: 0.78rem;
 }
 
-.gk-name {
+.gk-player {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   flex: 1;
   min-width: 0;
+}
+.gk-photo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid #30363d;
+}
+.gk-photo-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #21262d;
+  border: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #58a6ff;
+  flex-shrink: 0;
+}
+.gk-player-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gk-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.83rem;
+  color: #c9d1d9;
+  transition: color 0.13s;
+}
+.gk-team {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: #484f58;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
+.gk-team-logo {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+}
 .gk-goals {
   font-weight: 700;
-  color: #58a6ff;
-  min-width: 1.5rem;
-  text-align: right;
+  color: #56d364;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .gk-empty {

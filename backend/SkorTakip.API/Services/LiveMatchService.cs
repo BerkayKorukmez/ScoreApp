@@ -46,8 +46,8 @@ public class LiveMatchService : BackgroundService, ILiveMatchService
                 _logger.LogError(ex, "LiveMatchService beklenmeyen hata: {Message}", ex.Message);
             }
 
-            // 2 dakikada bir güncelle (API rate limit: 10 istek/dakika)
-            await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
+            // 1 dakikada bir güncelle (API rate limit: 20 istek/dakika)
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
     }
 
