@@ -4,8 +4,12 @@
     <div class="auth-hero">
       <div class="hero-content">
         <div class="hero-brand">
-          <span class="hero-icon">⚽</span>
-          <span class="hero-text">SkorTakip</span>
+          <svg class="hero-icon" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="26" cy="26" r="25" fill="#2ECC71"/>
+            <text x="26" y="36" text-anchor="middle" font-family="'Arial Black', Arial, sans-serif"
+                  font-size="28" font-weight="900" fill="#ffffff" letter-spacing="-1">S</text>
+          </svg>
+          <span class="hero-text">SkorNet</span>
         </div>
         <h2 class="hero-title">Favori takımlarını kaydet,<br />anlık bildirimler al.</h2>
         <p class="hero-desc">
@@ -184,7 +188,6 @@ const strengthLabel = computed(() => {
 /* Kayıt işlemi */
 const handleRegister = async () => {
   errorMessage.value = ''
-  // Email'den otomatik kullanıcı adı oluştur
   const username = email.value.split('@')[0]
   const result = await authStore.register(username, email.value, password.value)
 
@@ -230,7 +233,7 @@ const handleRegister = async () => {
   width: 500px;
   height: 500px;
   border-radius: 50%;
-  background: radial-gradient(circle, #23863615 0%, transparent 70%);
+  background: radial-gradient(circle, #27AE6015 0%, transparent 70%);
 }
 
 .auth-hero::after {
@@ -258,7 +261,10 @@ const handleRegister = async () => {
 }
 
 .hero-icon {
-  font-size: 2rem;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: block;
 }
 
 .hero-text {
@@ -504,7 +510,7 @@ const handleRegister = async () => {
 }
 
 .strength-fill.strong {
-  background: #3fb950;
+  background: #2ECC71;
 }
 
 .strength-text {
@@ -526,7 +532,7 @@ const handleRegister = async () => {
 }
 
 .strength-text.strong {
-  color: #3fb950;
+  color: #2ECC71;
 }
 
 /* =============================================
@@ -561,9 +567,9 @@ const handleRegister = async () => {
   gap: 0.5rem;
   width: 100%;
   padding: 0.8rem;
-  background: #238636;
+  background: #27AE60;
   color: #ffffff;
-  border: 1px solid #238636;
+  border: 1px solid #27AE60;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -574,8 +580,8 @@ const handleRegister = async () => {
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: #2ea043;
-  border-color: #2ea043;
+  background: #27AE60;
+  border-color: #27AE60;
 }
 
 .btn-submit:disabled {

@@ -452,9 +452,9 @@ const handleSubmit = async () => {
 .comment-input:focus { border-color: #58a6ff; }
 
 .send-btn {
-  background: #238636;
+  background: #27AE60;
   color: #fff;
-  border: 1px solid #2ea043;
+  border: 1px solid #27AE60;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -463,7 +463,7 @@ const handleSubmit = async () => {
   transition: background 0.15s;
   white-space: nowrap;
 }
-.send-btn:hover:not(:disabled) { background: #2ea043; }
+.send-btn:hover:not(:disabled) { background: #27AE60; }
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ─── Onay Modal ─────────────────────────────────────────────────────────── */

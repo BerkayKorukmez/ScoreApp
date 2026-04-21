@@ -2,16 +2,15 @@ import http from './http'
 
 /**
  * Belirtilen spor tipine göre maçları API'den çeker
- * @param {string} sportType - 'football' | 'basketball' | 'volleyball' | 'tennis'
+ * @param {string} sportType - 'football' | 'basketball' | 'volleyball'
  * @param {string|null} league - Lig filtresi (opsiyonel)
  */
 export const fetchMatches = async (sportType, league = null) => {
-  // Backend SportType enum: Football=0, Basketball=1, AmericanFootball=2, Volleyball=3, Tennis=4
+  // Backend SportType enum: Football=0, Basketball=1, AmericanFootball=2, Volleyball=3
   const sportTypeMap = {
     football:   0,
     basketball: 1,
-    volleyball: 3,
-    tennis:     4
+    volleyball: 3
   }
 
   const params = { sportType: sportTypeMap[sportType] }

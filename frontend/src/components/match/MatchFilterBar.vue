@@ -187,7 +187,13 @@ defineEmits(['update:activeFilter', 'update:selectedLeagueKey', 'update:searchQu
 .league-dropdown optgroup { background: #0d1117; color: #58a6ff; font-weight: 600; font-size: 0.75rem; }
 
 @media (max-width: 900px) {
-  .filter-bar { flex-direction: column; gap: 0.5rem; align-items: flex-start; }
-  .league-dropdown { width: 100%; }
+  .filter-bar { padding: 0.65rem 1rem; }
+  .filter-row { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .league-dropdown { width: 100%; min-width: unset; }
+}
+
+@media (max-width: 480px) {
+  .filter-bar { padding: 0.55rem 0.75rem; }
+  .tab-btn { padding: 0.35rem 0.6rem; font-size: 0.75rem; }
 }
 </style>

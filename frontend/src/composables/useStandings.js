@@ -42,7 +42,7 @@ export function useStandings(selectedSportRef, leagueInfoRef) {
       fallbackMap = VOLLEYBALL_LEAGUE_IDS
       fetchFn     = fetchVolleyballStandings
     } else {
-      return // Tenis için puan tablosu yok
+      return // Bilinmeyen spor tipi
     }
 
     // Futbol: leagueId ile API-Sports

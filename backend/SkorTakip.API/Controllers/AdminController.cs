@@ -33,11 +33,11 @@ public class AdminController : ControllerBase
     }
 
     // ════════════════════════════════════════════════════════════
-    //  MAÇ YÖNETİMİ — Futbol, Basketbol, Voleybol (Tenis hariç)
+    //  MAÇ YÖNETİMİ — Futbol, Basketbol, Voleybol
     // ════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Tüm maçları döner: API (futbol, basketbol, voleybol) + DB. Tenis hariç.
+    /// Tüm maçları döner: API (futbol, basketbol, voleybol) + DB.
     /// </summary>
     [HttpGet("matches")]
     public async Task<IActionResult> GetMatches(
@@ -67,9 +67,7 @@ public class AdminController : ControllerBase
             Console.WriteLine($"Admin maç çekme hatası: {ex.Message}");
         }
 
-        var dbMatches = await _context.Matches
-            .Where(m => m.SportType != SportType.Tennis)
-            .ToListAsync();
+        var dbMatches = await _context.Matches.ToListAsync();
 
         var seenIds = new HashSet<string>();
         foreach (var m in allMatches)

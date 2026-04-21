@@ -548,7 +548,7 @@ const rowClass = (index) => {
 }
 
 /* Av farkı renkleri — kendi sınıflarından geliyor, !important gereksiz */
-.positive { color: #3fb950; }
+.positive { color: #2ECC71; }
 .negative { color: #f85149; }
 
 .row-champion   { border-left: 3px solid #58a6ff; }
@@ -572,7 +572,11 @@ const rowClass = (index) => {
 .legend-color.europa     { background: #f0883e; }
 .legend-color.relegation { background: #f85149; }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .right-panel { position: static; max-height: none; border-top: 1px solid #21262d; }
+}
+
+@media (max-width: 600px) {
+  .standings-legend { padding: 0.75rem 1rem; font-size: 0.68rem; }
 }
 </style>

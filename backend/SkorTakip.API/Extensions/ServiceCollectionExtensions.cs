@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SkorTakip.API.Data;
@@ -45,11 +49,18 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// JWT tabanlı kimlik doğrulamayı yapılandırır.
+    /// Üretimde JWT secret anahtarının en az 32 karakter olması zorunludur.
     /// </summary>
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         var jwtSettings = configuration.GetSection("JwtSettings");
         var secretKey = jwtSettings["SecretKey"];
+
+        if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < 32)
+        {
+            throw new InvalidOperationException(
+                "JwtSettings:SecretKey boş veya 32 karakterden kısa. .env / ortam değişkenleri üzerinden güçlü bir JWT_SECRET ayarlayın.");
+        }
 
         services.AddAuthentication(options =>
         {
@@ -66,7 +77,9 @@ public static class ServiceCollectionExtensions
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = jwtSettings["Issuer"],
                 ValidAudience = jwtSettings["Audience"],
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!))
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!)),
+                // Varsayılan 5 dk tolerans production için çok geniş — token süresi bittiği an geçersiz olsun.
+                ClockSkew = TimeSpan.FromSeconds(30)
             };
 
             // SignalR WebSocket bağlantılarında token query string'den okunur
@@ -179,13 +192,95 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// SignalR (WebSocket) yapılandırması.
+    /// Üretimde detaylı hata mesajları kapatılır (istemciye stack trace gitmesin).
     /// </summary>
-    public static IServiceCollection AddSignalRServices(this IServiceCollection services)
+    public static IServiceCollection AddSignalRServices(this IServiceCollection services, IWebHostEnvironment environment)
     {
         services.AddSignalR(options =>
         {
-            options.EnableDetailedErrors = true;
+            options.EnableDetailedErrors = environment.IsDevelopment();
+            options.MaximumReceiveMessageSize = 32 * 1024; // 32 KB — yorumlar için yeterli, büyük payload'ları engeller
         });
+        return services;
+    }
+
+    /// <summary>
+    /// Temel istek hız sınırlama (auth uçları + genel fallback).
+    /// </summary>
+    public static IServiceCollection AddApiRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // 429 yanıtında JSON gövde + Retry-After başlığı. Frontend e.response.data.message üzerinden gösteriyor.
+            options.OnRejected = async (context, token) =>
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+                if (context.Lease.TryGetMetadata(
+                        System.Threading.RateLimiting.MetadataName.RetryAfter, out var retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString(System.Globalization.NumberFormatInfo.InvariantInfo);
+                }
+
+                var path = context.HttpContext.Request.Path.Value ?? string.Empty;
+                var message = path.StartsWith("/api/match-preview", StringComparison.OrdinalIgnoreCase)
+                    ? "Günlük yapay zeka tahmin hakkınız doldu. Her kullanıcı günde en fazla 3 istek yapabilir."
+                    : "Çok sık istek atıldı. Lütfen bir süre sonra tekrar deneyin.";
+
+                context.HttpContext.Response.ContentType = "application/json";
+                await context.HttpContext.Response.WriteAsJsonAsync(new { message }, token);
+            };
+
+            // Giriş / kayıt: brute-force koruması — 10 istek/dakika/IP
+            options.AddFixedWindowLimiter("auth", opt =>
+            {
+                opt.PermitLimit = 10;
+                opt.Window = TimeSpan.FromMinutes(1);
+                opt.QueueLimit = 0;
+            });
+
+            // Yorum ekleme: spam koruması — 20 istek/dakika/IP
+            options.AddFixedWindowLimiter("comments", opt =>
+            {
+                opt.PermitLimit = 20;
+                opt.Window = TimeSpan.FromMinutes(1);
+                opt.QueueLimit = 0;
+            });
+
+            // AI maç önizlemesi: kullanıcı başına günde 3 istek (Gemini kotası korunsun).
+            // [Authorize] olduğundan normalde kullanıcı kimliği mevcuttur; olmazsa IP'ye düşer.
+            options.AddPolicy("match-preview", context =>
+            {
+                var userId = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var partitionKey = !string.IsNullOrEmpty(userId)
+                    ? $"user:{userId}"
+                    : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+                return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey,
+                    _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 3,
+                        Window = TimeSpan.FromDays(1),
+                        QueueLimit = 0
+                    });
+            });
+
+            // Genel global fallback — 300 istek/dakika/IP (tarayıcının normal kullanımı kapsamlıca geçer)
+            options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+                System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 300,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    }));
+        });
+
         return services;
     }
 }

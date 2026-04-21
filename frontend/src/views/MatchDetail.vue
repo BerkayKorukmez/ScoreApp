@@ -919,11 +919,16 @@ onMounted(async () => {
   display: flex;
   border-bottom: 1px solid #21262d;
   background: #0d1117;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tab-bar::-webkit-scrollbar { display: none; }
 
 .tab-item {
   flex: 1;
-  padding: 0.75rem;
+  min-width: max-content;
+  padding: 0.75rem 0.9rem;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -932,6 +937,7 @@ onMounted(async () => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .tab-item:hover { color: #c9d1d9; background: #161b22; }
@@ -1162,7 +1168,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.icon-goal { background: #238636; }
+.icon-goal { background: #27AE60; }
 .icon-yellow { background: #d29922; }
 .icon-red { background: #f85149; }
 .icon-subst { background: #1f6feb; }

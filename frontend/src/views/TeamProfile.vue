@@ -213,7 +213,7 @@ onMounted(async () => {
   border-radius: 20px;
   border: 1px solid #30363d;
 }
-.meta-chip--special { background: #1f2d1a; color: #56d364; border-color: #238636; }
+.meta-chip--special { background: #1f2d1a; color: #56d364; border-color: #27AE60; }
 
 /* ── Sections ── */
 .profile-section {

@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import axios from 'axios'
 
 export const useAuthStore = defineStore('auth', () => {
-  // localStorage'dan kullanıcı ve token bilgisini geri yükle
   const storedUser = localStorage.getItem('user')
   const user  = ref(storedUser ? JSON.parse(storedUser) : null)
   const token = ref(localStorage.getItem('token') || null)
@@ -20,9 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     axios.interceptors.request.use(
       (config) => {
-        if (token.value) {
-          config.headers.Authorization = `Bearer ${token.value}`
-        }
+        if (token.value) config.headers.Authorization = `Bearer ${token.value}`
         return config
       },
       (error) => Promise.reject(error)
@@ -31,9 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
     axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
-          logout()
-        }
+        if (error.response?.status === 401) logout()
         return Promise.reject(error)
       }
     )
@@ -91,6 +86,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      await axios.post('/auth/change-password', { currentPassword, newPassword })
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || error.response?.data?.errors?.[0] || 'Şifre değiştirilemedi.'
+      }
+    }
+  }
+
   const logout = () => {
     token.value = null
     user.value  = null
@@ -109,7 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       localStorage.setItem('user', JSON.stringify(user.value))
       return { success: true }
-    } catch (error) {
+    } catch {
       logout()
       return { success: false }
     }
@@ -123,6 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     login,
     register,
+    changePassword,
     logout,
     fetchCurrentUser
   }

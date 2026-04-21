@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -54,7 +55,6 @@ public class MatchController : ControllerBase
                     SportType.Football => await _externalApiService.FetchFootballMatchesAsync(),
                     SportType.Basketball => await _externalApiService.FetchBasketballMatchesAsync(),
                     SportType.Volleyball => await _externalApiService.FetchVolleyballMatchesAsync(),
-                    SportType.Tennis => await _externalApiService.FetchTennisMatchesAsync(),
                     _ => new List<Match>()
                 };
             }
@@ -262,8 +262,7 @@ public class MatchController : ControllerBase
         {
             _externalApiService.FetchFootballMatchesAsync(),
             _externalApiService.FetchBasketballMatchesAsync(),
-            _externalApiService.FetchVolleyballMatchesAsync(),
-            _externalApiService.FetchTennisMatchesAsync()
+            _externalApiService.FetchVolleyballMatchesAsync()
         };
 
         var externalResults = await Task.WhenAll(externalTasks);
@@ -368,6 +367,7 @@ public class MatchController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateMatch([FromBody] CreateMatchRequest request)
     {
         var match = new Match
@@ -390,6 +390,7 @@ public class MatchController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateMatch(string id, [FromBody] UpdateMatchRequest request)
     {
         var match = await _context.Matches.FirstOrDefaultAsync(m => m.Id == id);
@@ -408,6 +409,7 @@ public class MatchController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteMatch(string id)
     {
         var match = await _context.Matches.FirstOrDefaultAsync(m => m.Id == id);

@@ -270,6 +270,17 @@ const closeAiPreview = () => {
 .fav-btn.active { color: #e3b341; text-shadow: 0 0 8px #e3b34166; }
 
 @media (max-width: 600px) {
-  .match-row { padding: 0.5rem 0.75rem; }
+  .match-row { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+  .match-time-col { width: 48px; }
+  .team-name { font-size: 0.82rem; }
+  .match-actions-col { min-width: 46px; gap: 0.15rem; }
+  .ai-preview-btn { padding: 0.18rem 0.3rem; font-size: 0.8rem; }
+}
+
+@media (max-width: 380px) {
+  .match-row { padding: 0.45rem 0.6rem; }
+  .team-logo-sm,
+  .team-logo-placeholder { width: 16px; height: 16px; }
+  .team-name { font-size: 0.78rem; }
 }
 </style>

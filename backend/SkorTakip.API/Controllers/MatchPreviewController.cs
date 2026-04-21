@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SkorTakip.API.DTOs;
 using SkorTakip.API.Exceptions;
 using SkorTakip.API.Services.Interfaces;
@@ -8,10 +9,12 @@ namespace SkorTakip.API.Controllers;
 
 /// <summary>
 /// Oynanacak maçlar için AI önizleme — <c>/api/ai</c> sohbet uçlarından bağımsız.
+/// Kullanıcı başına günde 3 istek ile sınırlı (Gemini kotası korunur).
 /// </summary>
 [ApiController]
 [Route("api/match-preview")]
 [Authorize]
+[EnableRateLimiting("match-preview")]
 public class MatchPreviewController : ControllerBase
 {
     private readonly IMatchPreviewAiService _preview;

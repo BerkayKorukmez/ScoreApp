@@ -263,6 +263,35 @@ namespace SkorTakip.API.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("SkorTakip.API.Models.ChatBan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BannedByAdminId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BannedByAdminId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("ChatBans");
+                });
+
             modelBuilder.Entity("SkorTakip.API.Models.FavoriteMatch", b =>
                 {
                     b.Property<int>("Id")
@@ -361,6 +390,42 @@ namespace SkorTakip.API.Migrations
                     b.ToTable("Matches");
                 });
 
+            modelBuilder.Entity("SkorTakip.API.Models.MatchComment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MatchId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("MatchId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("MatchComments");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -423,7 +488,37 @@ namespace SkorTakip.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SkorTakip.API.Models.ChatBan", b =>
+                {
+                    b.HasOne("SkorTakip.API.Models.ApplicationUser", "BannedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("BannedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SkorTakip.API.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BannedByAdmin");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SkorTakip.API.Models.FavoriteMatch", b =>
+                {
+                    b.HasOne("SkorTakip.API.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SkorTakip.API.Models.MatchComment", b =>
                 {
                     b.HasOne("SkorTakip.API.Models.ApplicationUser", "User")
                         .WithMany()

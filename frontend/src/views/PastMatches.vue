@@ -892,9 +892,9 @@ const formatResultDate = (dateStr) => {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  background: #238636;
+  background: #27AE60;
   color: #ffffff;
-  border: 1px solid #238636;
+  border: 1px solid #27AE60;
   padding: 0.55rem 1.25rem;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -907,7 +907,7 @@ const formatResultDate = (dateStr) => {
 }
 
 .search-btn:hover:not(:disabled) {
-  background: #2ea043;
+  background: #27AE60;
 }
 
 .search-btn:disabled {

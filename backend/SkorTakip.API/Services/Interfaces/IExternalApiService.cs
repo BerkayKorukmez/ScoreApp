@@ -9,7 +9,6 @@ public interface IExternalApiService
     Task<List<Match>> FetchFootballMatchesAsync();
     Task<List<Match>> FetchBasketballMatchesAsync();
     Task<List<Match>> FetchVolleyballMatchesAsync();
-    Task<List<Match>> FetchTennisMatchesAsync();
 
     // ── Maç istatistikleri / olaylar ─────────────────────────────────────────────
     Task<Dictionary<string, object>?> FetchFootballMatchStatisticsAsync(int fixtureId);

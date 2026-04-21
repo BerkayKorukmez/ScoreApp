@@ -243,7 +243,7 @@ const dateTime = computed(() => {
 }
 .badge-upcoming { background: #1f3a5f; color: #58a6ff; }
 .badge-live     { background: #3d0a0a; color: #f85149; animation: pulse-bg 1.4s infinite; }
-.badge-finished { background: #0f2a0f; color: #3fb950; }
+.badge-finished { background: #0f2a0f; color: #2ECC71; }
 .badge-halftime { background: #2d2200; color: #d29922; }
 .live-minute    { font-size: 11px; color: #f85149; font-weight: 700; }
 

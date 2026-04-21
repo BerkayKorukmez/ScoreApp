@@ -14,16 +14,14 @@ export const SPORT_LABELS = {
   0: '⚽ Futbol',
   1: '🏀 Basketbol',
   2: '🏈 Amerikan Futbolu',
-  3: '🏐 Voleybol',
-  4: '🎾 Tenis'
+  3: '🏐 Voleybol'
 }
 
 // Backend API için spor tipi map'i
 export const SPORT_TYPE_MAP = {
   football:   0,
   basketball: 1,
-  volleyball: 3,
-  tennis:     4
+  volleyball: 3
 }
 
 // Popüler ligler (dropdown'da öncelikli sıralama için)

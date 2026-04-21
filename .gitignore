@@ -1,26 +1,42 @@
-# Frontend
+# ── Frontend ──────────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
 
-# Backend
+# ── Backend (.NET) ────────────────────────────────────────────────────
 backend/**/bin/
 backend/**/obj/
 backend/**/.vs/
+backend/**/TestResults/
+backend/**/*.user
 
 # Visual Studio local cache
 .vs/
 
-# Gizli değişkenler — ASLA Git'e gönderme!
+# ── Gizli değişkenler — ASLA Git'e gönderme! ──────────────────────────
 .env
-# .env.example gönderilir (şablon, gerçek değer içermez)
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+appsettings.Production.json
+appsettings.*.Production.json
 
-# IDE
+# ── IDE ───────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ── Loglar ────────────────────────────────────────────────────────────
+*.log
+logs/

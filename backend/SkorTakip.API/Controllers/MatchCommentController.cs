@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SkorTakip.API.Data;
@@ -59,6 +60,7 @@ public class MatchCommentController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize]
+    [EnableRateLimiting("comments")]
     public async Task<IActionResult> AddComment([FromBody] AddCommentRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Content) || request.Content.Length > 500)

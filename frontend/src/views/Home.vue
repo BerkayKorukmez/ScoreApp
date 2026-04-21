@@ -205,9 +205,15 @@ watch(selectedLeagueInfo, (val) => {
 </script>
 
 <style scoped>
+.home-page {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .main-layout {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: minmax(0, 1fr) 380px;
   gap: 0;
   max-width: 1400px;
   margin: 0 auto;
@@ -223,9 +229,26 @@ watch(selectedLeagueInfo, (val) => {
 .left-panel {
   border-right: 1px solid #21262d;
   overflow-y: auto;
+  min-width: 0;
 }
 
-@media (max-width: 900px) {
-  .main-layout { grid-template-columns: 1fr; }
+.matches-container {
+  min-width: 0;
+}
+
+/* Orta cihaz: sağ panel biraz daralsın */
+@media (max-width: 1200px) {
+  .main-layout { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+
+@media (max-width: 960px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .left-panel {
+    border-right: none;
+    border-bottom: 1px solid #21262d;
+  }
 }
 </style>

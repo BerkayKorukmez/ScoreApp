@@ -12,7 +12,6 @@ namespace SkorTakip.API.Services;
 ///   ExternalApiService.Football.cs
 ///   ExternalApiService.Basketball.cs
 ///   ExternalApiService.Volleyball.cs
-///   ExternalApiService.Tennis.cs
 /// </summary>
 public partial class ExternalApiService : IExternalApiService
 {
@@ -51,8 +50,6 @@ public partial class ExternalApiService : IExternalApiService
                 ?? throw new InvalidOperationException("ApiSports:BasketballApiKey configuration is missing."),
             "Volleyball" => _configuration["ApiSports:VolleyballApiKey"] 
                 ?? throw new InvalidOperationException("ApiSports:VolleyballApiKey configuration is missing."),
-        "Tennis"     => _configuration["ApiSports:TennisApiKey"]
-                ?? throw new InvalidOperationException("ApiSports:TennisApiKey configuration is missing."),
         _            => throw new InvalidOperationException($"Unknown sport type: {sportType}")
     };
 

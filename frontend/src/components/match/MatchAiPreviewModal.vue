@@ -184,7 +184,7 @@ defineEmits(['close'])
   min-width: 2px;
   transition: width 0.4s ease;
 }
-.mp-bar.home { background: linear-gradient(90deg, #238636, #3fb950); }
+.mp-bar.home { background: linear-gradient(90deg, #27AE60, #2ECC71); }
 .mp-bar.draw { background: #8b949e; }
 .mp-bar.away { background: linear-gradient(90deg, #a371f7, #8957e5); }
 

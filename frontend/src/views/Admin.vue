@@ -1,7 +1,25 @@
 <template>
-  <div class="admin-layout">
+  <div class="admin-layout" :class="{ 'sidebar-open': sidebarOpen }">
+    <!-- Mobil: üst bar + hamburger -->
+    <div class="mobile-topbar">
+      <button class="btn-mobile-menu" @click="sidebarOpen = !sidebarOpen" :aria-expanded="sidebarOpen" aria-label="Admin menüsü">
+        <svg v-if="!sidebarOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+          <line x1="6" y1="6" x2="18" y2="18"/>
+          <line x1="6" y1="18" x2="18" y2="6"/>
+        </svg>
+      </button>
+      <span class="mobile-title">⚡ Admin Panel</span>
+    </div>
+
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+
     <!-- Sidebar -->
-    <aside class="admin-sidebar">
+    <aside class="admin-sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-logo">
         <span class="logo-icon">⚡</span>
         <span class="logo-text">Admin Panel</span>
@@ -10,7 +28,7 @@
         <button
           class="nav-item"
           :class="{ active: activeTab === 'matches' }"
-          @click="activeTab = 'matches'"
+          @click="activeTab = 'matches'; sidebarOpen = false"
         >
           <span class="nav-icon">⚽</span>
           <span>Maç Yönetimi</span>
@@ -18,7 +36,7 @@
         <button
           class="nav-item"
           :class="{ active: activeTab === 'users' }"
-          @click="activeTab = 'users'"
+          @click="activeTab = 'users'; sidebarOpen = false"
         >
           <span class="nav-icon">👤</span>
           <span>Kullanıcılar</span>
@@ -26,7 +44,7 @@
         <button
           class="nav-item"
           :class="{ active: activeTab === 'chatbans' }"
-          @click="activeTab = 'chatbans'; loadChatBans()"
+          @click="activeTab = 'chatbans'; loadChatBans(); sidebarOpen = false"
         >
           <span class="nav-icon">🚫</span>
           <span>Sohbet Yasakları</span>
@@ -352,6 +370,7 @@ import {
 const router     = useRouter()
 const authStore  = useAuthStore()
 const activeTab  = ref('matches')
+const sidebarOpen = ref(false)
 const currentUserId = computed(() => authStore.user?.id)
 
 // ─── Maçlar ───────────────────────────────────────────────────────────────────
@@ -531,8 +550,8 @@ const submitDeleteUser = async () => {
 }
 
 // ─── Yardımcı ─────────────────────────────────────────────────────────────────
-const sportLabel = (type) => ({ 0: 'Futbol', 1: 'Basketbol', 2: 'Amerikan Futbolu', 3: 'Voleybol', 4: 'Tenis' }[type] ?? '?')
-const sportClass = (type) => ({ 0: 'football', 1: 'basketball', 2: 'american-football', 3: 'volleyball', 4: 'tennis' }[type] ?? '')
+const sportLabel = (type) => ({ 0: 'Futbol', 1: 'Basketbol', 2: 'Amerikan Futbolu', 3: 'Voleybol' }[type] ?? '?')
+const sportClass = (type) => ({ 0: 'football', 1: 'basketball', 2: 'american-football', 3: 'volleyball' }[type] ?? '')
 const statusLabel = (s) => ({ 0: 'Planlandı', 1: 'Canlı', 2: 'Tamamlandı', 3: 'Ertelendi', 4: 'İptal' }[s] ?? '?')
 const statusClass = (s) => ({ 0: 'scheduled', 1: 'live', 2: 'finished', 3: 'postponed', 4: 'cancelled' }[s] ?? '')
 
@@ -557,11 +576,51 @@ onMounted(() => {
   background: #0f1117;
   color: #e2e8f0;
   font-family: 'Segoe UI', system-ui, sans-serif;
+  position: relative;
+}
+
+/* ─── Mobil top bar (varsayılan gizli) ────────────────────────────────────── */
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #161b27;
+  border-bottom: 1px solid #2d3748;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+}
+.btn-mobile-menu {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1e2533;
+  color: #e2e8f0;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.mobile-title {
+  font-weight: 700;
+  color: #a78bfa;
+  font-size: 1rem;
+}
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 80;
 }
 
 /* ─── Sidebar ─────────────────────────────────────────────────────────────── */
 .admin-sidebar {
   width: 240px;
+  flex-shrink: 0;
   background: #161b27;
   border-right: 1px solid #2d3748;
   display: flex;
@@ -569,6 +628,7 @@ onMounted(() => {
   position: sticky;
   top: 0;
   height: 100vh;
+  z-index: 90;
 }
 
 .sidebar-logo {
@@ -634,8 +694,44 @@ onMounted(() => {
 /* ─── Main ─────────────────────────────────────────────────────────────────── */
 .admin-main {
   flex: 1;
+  min-width: 0;
   padding: 32px;
   overflow-y: auto;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .admin-layout { flex-direction: column; }
+
+  .mobile-topbar { display: flex; }
+
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100vh;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 16px rgba(0,0,0,0.4);
+  }
+  .admin-sidebar.open { transform: translateX(0); }
+
+  .admin-layout.sidebar-open .sidebar-backdrop { display: block; }
+
+  .admin-main { padding: 18px 14px; }
+
+  .section-header h1 { font-size: 1.3rem; }
+
+  .toolbar { flex-wrap: wrap; gap: 10px; }
+  .search-input { max-width: none; width: 100%; }
+}
+
+@media (max-width: 520px) {
+  .admin-main { padding: 14px 10px; }
+  .admin-table th,
+  .admin-table td { padding: 10px 12px; font-size: 0.82rem; }
 }
 
 .section-header { margin-bottom: 24px; }
@@ -714,14 +810,13 @@ onMounted(() => {
   font-size: 0.75rem;
   font-weight: 600;
 }
-.sport-badge.football   { background: #1c3a1c; color: #68d391; }
+.sport-badge.football   { background: #1c3a1c; color: #2ECC71; }
 .sport-badge.basketball { background: #3a2a1c; color: #f6ad55; }
 .sport-badge.volleyball { background: #1c2c3a; color: #63b3ed; }
-.sport-badge.tennis     { background: #2a3a1c; color: #c6f135; }
 
 .status-badge.live      { background: #3f1f1f; color: #fc8181; }
 .status-badge.finished  { background: #1a2533; color: #94a3b8; }
-.status-badge.scheduled { background: #1c2c1c; color: #68d391; }
+.status-badge.scheduled { background: #1c2c1c; color: #2ECC71; }
 .status-badge.postponed { background: #3a2a0a; color: #f6e05e; }
 .status-badge.cancelled { background: #2d1a1a; color: #fc8181; }
 
@@ -740,7 +835,7 @@ onMounted(() => {
 }
 .btn-hide { background: #3f1f1f; color: #fc8181; }
 .btn-hide:hover { background: #5a2020; }
-.btn-show { background: #1c3a1c; color: #68d391; }
+.btn-show { background: #1c3a1c; color: #2ECC71; }
 .btn-show:hover { background: #1f4a1f; }
 
 /* ─── User cell ──────────────────────────────────────────────────────────── */
@@ -851,9 +946,16 @@ onMounted(() => {
   border: 1px solid #2d3748;
   border-radius: 16px;
   padding: 28px 32px;
-  min-width: 380px;
+  min-width: min(380px, calc(100vw - 2rem));
   max-width: 480px;
-  width: 90%;
+  width: calc(100% - 2rem);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+@media (max-width: 480px) {
+  .modal { padding: 20px 18px; border-radius: 12px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .modal-btn { flex: 1; min-width: 45%; }
 }
 .modal h2 { margin: 0 0 6px; color: #f1f5f9; font-size: 1.2rem; }
 .modal-user { color: #64748b; font-size: 0.88rem; margin: 0 0 20px; }
@@ -875,7 +977,7 @@ onMounted(() => {
 .modal-input:focus { border-color: #a78bfa; }
 
 .modal-error   { color: #fc8181; font-size: 0.85rem; margin-bottom: 12px; }
-.modal-success { color: #68d391; font-size: 0.85rem; margin-bottom: 12px; }
+.modal-success { color: #2ECC71; font-size: 0.85rem; margin-bottom: 12px; }
 
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 .modal-btn {
@@ -897,7 +999,7 @@ onMounted(() => {
 .btn-delete-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .modal-unban-icon { font-size: 2rem; text-align: center; margin-bottom: 10px; }
-.btn-unban-confirm      { background: #1a3a28; color: #68d391; }
+.btn-unban-confirm      { background: #1a3a28; color: #2ECC71; }
 .btn-unban-confirm:hover { background: #1f4a32; }
 .btn-unban-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

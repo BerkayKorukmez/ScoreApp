@@ -51,17 +51,8 @@ public static class EnvFileLoader
         SetIfEmpty("ApiSports__FootballApiKey", G("FOOTBALL_API_KEY"));
         SetIfEmpty("ApiSports__BasketballApiKey", G("BASKETBALL_API_KEY"));
         SetIfEmpty("ApiSports__VolleyballApiKey", G("VOLLEYBALL_API_KEY"));
-        var tennisKey = G("TENNIS_API_KEY");
-        if (string.IsNullOrWhiteSpace(tennisKey))
-            tennisKey = G("FOOTBALL_API_KEY");
-        SetIfEmpty("ApiSports__TennisApiKey", tennisKey);
         SetIfEmpty("Gemini__ApiKey", G("GEMINI_API_KEY"));
         SetIfEmpty("Gemini__Model", G("GEMINI_MODEL"));
-        var matchPreviewKey = G("MATCH_PREVIEW_GEMINI_API_KEY");
-        if (string.IsNullOrWhiteSpace(matchPreviewKey))
-            matchPreviewKey = G("GEMINI_API_KEY");
-        SetIfEmpty("MatchPreview__GeminiApiKey", matchPreviewKey);
-        SetIfEmpty("MatchPreview__Model", G("MATCH_PREVIEW_GEMINI_MODEL"));
         var newsKey = G("NEWS_API_KEY");
         if (string.IsNullOrWhiteSpace(newsKey))
             newsKey = G("VITE_NEWS_API_KEY");

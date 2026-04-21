@@ -357,7 +357,7 @@ watch(isOpen, async (open) => {
 }
 
 .ai-message.user .ai-msg-text {
-  background: #238636;
+  background: #27AE60;
   color: #fff;
   border-bottom-right-radius: 4px;
 }

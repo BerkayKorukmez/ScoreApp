@@ -37,13 +37,11 @@ public class MatchPreviewAiService : IMatchPreviewAiService
 
     public async Task<MatchPreviewResponseDto> GetPreviewAsync(MatchPreviewRequestDto request, CancellationToken ct = default)
     {
-        var apiKey = _configuration["MatchPreview:GeminiApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-            apiKey = _configuration["Gemini:ApiKey"];
+        var apiKey = _configuration["Gemini:ApiKey"];
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            _logger.LogWarning("MatchPreview:GeminiApiKey ve Gemini:ApiKey boş.");
+            _logger.LogWarning("Gemini:ApiKey boş.");
             throw new InvalidOperationException("Maç önizlemesi için API anahtarı yapılandırılmamış.");
         }
 
@@ -80,7 +78,7 @@ public class MatchPreviewAiService : IMatchPreviewAiService
             homeWinPercent, drawPercent, awayWinPercent tam sayı ve toplamları 100 olmalı.
             """;
 
-        var model = _configuration["MatchPreview:Model"] ?? _configuration["Gemini:Model"] ?? "gemini-3.1-flash-lite-preview";
+        var model = _configuration["Gemini:Model"] ?? "gemini-3.1-flash-lite-preview";
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
         var payload = new JsonObject

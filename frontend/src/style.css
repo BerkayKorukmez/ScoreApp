@@ -12,6 +12,12 @@
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* iOS safe-area desteği */
+  --safe-area-top:    env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left:   env(safe-area-inset-left, 0px);
+  --safe-area-right:  env(safe-area-inset-right, 0px);
 }
 
 body {
@@ -21,11 +27,46 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Yatay scroll'a asla izin verme — taşma varsa component seviyesinde çözülsün */
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Medya elementleri container'ı aşmasın */
+img, svg, video, canvas, iframe, object, embed {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Long word kırılması — uzun URL/takım ismi layout'u bozmasın */
+p, h1, h2, h3, h4, h5, h6, span, a, button, li {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+/* Form elementleri mobile zoom tetiklemesin (iOS < 16px input'ta zoom yapar) */
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  input, select, textarea, button {
+    font-size: inherit;
+  }
+}
+
+/* Dokunmatik hedefler minimum 44x44 — accessibility */
+button, a {
+  touch-action: manipulation;
 }
 
 /* Scrollbar stilleri */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -50,4 +91,34 @@ a {
 /* Genel buton reset */
 button {
   font-family: inherit;
+  cursor: pointer;
+}
+
+/* Reduced-motion kullanıcıları için animasyonları azalt */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =============================================
+   RESPONSIVE UTILITIES — global yardımcı sınıflar
+   ============================================= */
+
+/* Tablo taşma çözümü — parent'a .table-scroll sarmalayınca mobilde yatay scroll */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sadece masaüstünde görünen / mobilde görünen */
+.show-on-mobile { display: none !important; }
+
+@media (max-width: 768px) {
+  .hide-on-mobile { display: none !important; }
+  .show-on-mobile { display: initial !important; }
 }

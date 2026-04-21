@@ -530,7 +530,7 @@ const clearSearch = () => {
   padding: 14px;
   text-align: center;
 }
-.stat-card.finished { border-color: #238636; }
+.stat-card.finished { border-color: #27AE60; }
 .stat-card.live     { border-color: #da3633; }
 .stat-card.upcoming { border-color: #1f6feb; }
 .stat-num   { display: block; font-size: 24px; font-weight: 700; }
@@ -568,7 +568,7 @@ const clearSearch = () => {
 }
 .section-header h3 { font-size: 15px; margin: 0; font-weight: 600; }
 .section-icon { font-size: 16px; }
-.finished-header h3 { color: #3fb950; }
+.finished-header h3 { color: #2ECC71; }
 .live-header h3     { color: #f85149; }
 .upcoming-header h3 { color: #58a6ff; }
 
@@ -650,8 +650,22 @@ const clearSearch = () => {
 }
 
 /* Responsive */
+@media (max-width: 768px) {
+  .fixtures-page { padding: 18px 12px 40px; }
+  .page-title { font-size: 22px; }
+  .search-panel { padding: 14px; }
+}
+
 @media (max-width: 600px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-num { font-size: 20px; }
+  .selected-banner { flex-wrap: wrap; padding: 14px; gap: 12px; }
+  .banner-meta { flex-direction: row; align-items: center; width: 100%; }
+  .banner-change { margin-left: auto; }
+}
+
+@media (max-width: 400px) {
+  .page-title { font-size: 19px; }
   .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .selected-banner { flex-wrap: wrap; }
 }
 </style>

@@ -13,6 +13,5 @@ public enum SportType
     Football = 0,
     Basketball = 1,
     AmericanFootball = 2,
-    Volleyball = 3,
-    Tennis = 4
+    Volleyball = 3
 }
