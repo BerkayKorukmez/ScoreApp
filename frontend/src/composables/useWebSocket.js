@@ -15,8 +15,10 @@ export function useWebSocket() {
    * @returns {signalR.HubConnection}
    */
   const connect = (handlers = {}) => {
-    // Hem dev (vite proxy) hem Docker (nginx proxy) ortamında çalışır
-    const hubUrl = `${window.location.origin}/matchhub`
+    // Dev (vite proxy) / Docker (nginx proxy): same-origin. Vercel prod: VITE_API_URL ile backend host'u.
+    const apiBase = import.meta.env.VITE_API_URL
+    const origin = apiBase ? apiBase.replace(/\/$/, '') : window.location.origin
+    const hubUrl = `${origin}/matchhub`
 
     const conn = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl)

@@ -18,7 +18,10 @@ export function useMatchChat(token) {
    * @returns {Promise<void>} — bağlantı hazır olduğunda resolve olur
    */
   const connect = async (handlers = {}) => {
-    const hubUrl = `${window.location.origin}/matchhub`
+    // Dev/Docker: same-origin (nginx veya vite proxy). Vercel: VITE_API_URL ile backend host'u.
+    const apiBase = import.meta.env.VITE_API_URL
+    const origin = apiBase ? apiBase.replace(/\/$/, '') : window.location.origin
+    const hubUrl = `${origin}/matchhub`
 
     const builder = new signalR.HubConnectionBuilder().withAutomaticReconnect()
 

@@ -5,8 +5,11 @@ import router from './router'
 import App from './App.vue'
 import './style.css'
 
-// Axios base URL (Vite proxy kullanılıyor)
-axios.defaults.baseURL = '/api'
+// Axios base URL
+// - Dev: Vite proxy sayesinde '/api' yeterli
+// - Production (Vercel): VITE_API_URL=https://backend.example.com — sonuna '/api' ekleriz
+const apiBase = import.meta.env.VITE_API_URL
+axios.defaults.baseURL = apiBase ? `${apiBase.replace(/\/$/, '')}/api` : '/api'
 
 const app = createApp(App)
 app.use(createPinia())
