@@ -7,6 +7,15 @@ using SkorTakip.API.Middleware;
 
 EnvFileLoader.LoadOptional();
 
+// Render / Heroku / Fly.io gibi platformlar dinlenecek portu $PORT env var ile verir.
+// ASPNETCORE_URLS ayarlı değilse bu değeri kullanarak 0.0.0.0:$PORT'u dinle.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port) &&
+    string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{port}");
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ==================== SERVİS KAYITLARI ====================
